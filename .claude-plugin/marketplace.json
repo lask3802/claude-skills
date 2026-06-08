@@ -1,0 +1,23 @@
+{
+  "name": "claude-skills",
+  "owner": {
+    "name": "lask3802",
+    "url": "https://github.com/lask3802"
+  },
+  "metadata": {
+    "description": "lask's personal Claude Code skill pack.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "lask",
+      "source": "./plugins/lask",
+      "description": "Personal skill pack. Skills: handoff — generate a self-contained session-handoff document to copy into a fresh session or hand to another agent.",
+      "version": "1.0.0",
+      "author": {
+        "name": "lask3802"
+      },
+      "keywords": ["handoff", "session", "context-transfer", "productivity"]
+    }
+  ]
+}

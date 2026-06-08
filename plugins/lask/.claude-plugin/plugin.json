@@ -1,0 +1,10 @@
+{
+  "name": "lask",
+  "version": "1.0.0",
+  "description": "lask's personal Claude Code skill pack (handoff, ...).",
+  "author": {
+    "name": "lask3802"
+  },
+  "homepage": "https://github.com/lask3802/claude-skills",
+  "repository": "https://github.com/lask3802/claude-skills"
+}
