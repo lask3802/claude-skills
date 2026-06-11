@@ -12,12 +12,12 @@
     {
       "name": "lask",
       "source": "./plugins/lask",
-      "description": "Personal skill pack. Skills: handoff — generate a self-contained session-handoff document to copy into a fresh session or hand to another agent.",
-      "version": "1.0.0",
+      "description": "Personal skill pack. Skills: handoff — self-contained session-handoff document; model-tiers — spawned-agent model tiering (sonnet/opus/fable) enforced by hooks so subagents, agent teams and ultracode workflows never inherit the expensive main-loop model by default.",
+      "version": "1.1.0",
       "author": {
         "name": "lask3802"
       },
-      "keywords": ["handoff", "session", "context-transfer", "productivity"]
+      "keywords": ["handoff", "session", "context-transfer", "productivity", "model-tiering", "token-cost", "hooks", "ultracode", "subagents"]
     }
   ]
 }
