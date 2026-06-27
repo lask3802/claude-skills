@@ -119,6 +119,11 @@ const chair = await agent(
 return { round1, round2, chair }
 ```
 
+**Args robustness:** if your runtime doesn't reliably propagate `args` into a backgrounded workflow,
+interpolate `BRIEF`/`TOPIC` into the script as string literals when you author it (the orchestrator
+writes them in directly) instead of relying on `args.brief`/`args.topic`. Either way, also tell each
+agent it may read the repo/memory itself — grounding should never depend solely on the passed brief.
+
 (No ultracode? Do the same three phases with parallel `Task`/Agent calls: 5 critiques → feed each the
 other four's output for one cross-fire reply → one Chair agent synthesizes. The phases are the point,
 not the tool.)
