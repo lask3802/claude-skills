@@ -6,18 +6,18 @@
   },
   "metadata": {
     "description": "lask's personal Claude Code skill pack.",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "lask",
       "source": "./plugins/lask",
-      "description": "Personal skill pack. Skills: handoff — generate a self-contained session-handoff document to copy into a fresh session or hand to another agent.",
-      "version": "1.0.0",
+      "description": "Personal skill pack. Skills: handoff — self-contained session handoff document; roast — convene a 5-persona incubator panel (expander, first-principles, researcher, critic, user-advocate) to brutally review a project or topic. Agents: expander, first-principles, researcher, critic, user-advocate.",
+      "version": "1.1.0",
       "author": {
         "name": "lask3802"
       },
-      "keywords": ["handoff", "session", "context-transfer", "productivity"]
+      "keywords": ["handoff", "session", "context-transfer", "productivity", "roast", "incubator", "critique", "red-team", "first-principles", "agents"]
     }
   ]
 }
