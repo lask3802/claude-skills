@@ -1,6 +1,6 @@
 // Headless end-to-end checks. Cost tokens; run explicitly:
-//   LASK_E2E=1 node --test plugins/lask/tests/            (pre-install: repo working copy via --plugin-dir)
-//   LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test ...       (post-install: user-scope plugin, no --plugin-dir)
+//   LASK_E2E=1 node --test plugins/lask/tests/e2e.test.mjs                        (pre-install: repo working copy via --plugin-dir)
+//   LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/e2e.test.mjs    (post-install: user-scope plugin, no --plugin-dir)
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
