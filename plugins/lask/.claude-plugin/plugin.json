@@ -1,7 +1,7 @@
 {
   "name": "lask",
-  "version": "1.1.0",
-  "description": "lask's personal Claude Code skill pack (handoff, model-tiers) with hook-enforced model tiering for spawned agents.",
+  "version": "1.2.0",
+  "description": "lask's personal Claude Code plugin: director-mode delegation (seven-agent roster, playbooks, calibrated verification, Codex second opinions) with hook-enforced model tiering, plus handoff.",
   "author": {
     "name": "lask3802"
   },

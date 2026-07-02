@@ -113,3 +113,31 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.match(src, /lask:delegation-playbooks/);
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
+
+test("plugin.json is 1.2.0 and describes director mode", () => {
+  const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
+  assert.equal(pkg.name, "lask");
+  assert.equal(pkg.version, "1.2.0");
+  assert.match(pkg.description, /director/i);
+});
+
+test("hooks.json wires the three hooks to existing scripts", () => {
+  const hooks = JSON.parse(read("hooks/hooks.json"));
+  const flat = JSON.stringify(hooks);
+  assert.match(flat, /director-context\.js/);
+  assert.match(flat, /tier-agent\.js/);
+  assert.match(flat, /tier-workflow\.js/);
+  for (const s of ["director-context.js", "tier-agent.js", "tier-workflow.js"])
+    assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", s)), `${s} must exist`);
+});
+
+test("README documents the roster, the skills, and all three test commands", () => {
+  const readme = fs.readFileSync(path.join(PLUGIN_ROOT, "..", "..", "README.md"), "utf8");
+  for (const a of AGENTS) assert.match(readme, new RegExp(`lask:${a}`), `README must document lask:${a}`);
+  assert.match(readme, /lask:director/);
+  assert.match(readme, /lask:delegation-playbooks/);
+  assert.match(readme, /node plugins\/lask\/hooks\/scripts\/tier\.test\.js/);
+  assert.match(readme, /node --test plugins\/lask\/tests\//);
+  assert.match(readme, /LASK_E2E=1/);
+  assert.ok(!/lask:model-tiers/.test(readme), "README must not reference the retired skill");
+});
