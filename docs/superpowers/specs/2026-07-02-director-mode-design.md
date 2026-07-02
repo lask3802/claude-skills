@@ -194,9 +194,10 @@ The plugin is production software; three test layers (all plain Node, no deps):
 ## Out of scope / v2
 
 - **Enforcement hooks** on main-session Edit/Write (remind, then deny with
-  escape hatch). Requires verified discrimination of main-session vs subagent
-  tool calls in hook input; doc research is underway separately and its
-  findings will be recorded before v2 is designed. v1 is independent of it.
+  escape hatch). Feasibility now verified: hook stdin carries `agent_id` only
+  inside subagent calls, and PreToolUse `additionalContext` combines with
+  `allow` for non-blocking nudges — see
+  `2026-07-02-hooks-capability-notes.md`. v1 is independent of it.
 - Toggle machinery (hands-on mode flag). In guidance-only v1, the user just
   says so in chat.
 - Changing or capping the main-loop model (unchanged from 1.1.0).
