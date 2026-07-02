@@ -79,3 +79,37 @@ test("second-opinion embeds the verified codex recipe and the no-substitute rule
   assert.match(src, /never substitute/i);
   assert.match(src, /no adoption decisions/i);
 });
+
+test("director skill exists, names the whole roster, and keeps the escape hatch documented", () => {
+  const { fm, body } = parseFrontmatter(read("skills/director/SKILL.md"));
+  assert.equal(fm.name, "director");
+  assert.ok(fm.description && fm.description.length >= 60);
+  for (const a of AGENTS) assert.match(body, new RegExp(`lask:${a}`), `director skill must name lask:${a}`);
+  assert.match(body, /tier: reviewed/);
+  assert.match(body, /acceptance criteria/i);
+  assert.match(body, /path:line/);
+  assert.match(body, /adjudicat/i, "must state the per-finding adjudication duty");
+});
+
+test("delegation-playbooks skill covers the five scenarios and the cross-model checkpoint", () => {
+  const { fm, body } = parseFrontmatter(read("skills/delegation-playbooks/SKILL.md"));
+  assert.equal(fm.name, "delegation-playbooks");
+  assert.ok(fm.description && fm.description.length >= 60);
+  for (const s of ["## Feature", "## Bugfix", "## Research", "## Refactor", "## Review"])
+    assert.match(body, new RegExp(s), `playbooks must cover ${s}`);
+  assert.match(body, /second-opinion/);
+  assert.match(body, /escalat/i);
+});
+
+test("model-tiers is retired and handoff survives", () => {
+  assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "skills", "model-tiers")), "model-tiers must be deleted");
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "handoff", "SKILL.md")));
+});
+
+test("director-context.js source carries the policy tag and full roster", () => {
+  const src = read("hooks/scripts/director-context.js");
+  assert.match(src, /<lask-director-policy>/);
+  for (const a of AGENTS) assert.match(src, new RegExp(`lask:${a}`));
+  assert.match(src, /lask:delegation-playbooks/);
+  assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
+});
