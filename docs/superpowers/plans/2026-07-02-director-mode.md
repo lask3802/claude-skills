@@ -18,7 +18,7 @@
 - Fail-open principle for all hooks is unchanged: any hook error must degrade to a no-op, never break spawning.
 - Every file reference in agent reports and skills uses the clickable `path:line` form; agent definitions must state this rule.
 - Commit after every task with the exact message given in the task. Do NOT push until Task 6.
-- Full unit gate that must stay green from Task 1 onward: `node plugins/lask/hooks/scripts/tier.test.js`. Content gate from Task 3 onward: `node --test plugins/lask/tests/`.
+- Full unit gate that must stay green from Task 1 onward: `node plugins/lask/hooks/scripts/tier.test.js`. Content gate from Task 3 onward: `node --test plugins/lask/tests/content.test.mjs` (this Node/Windows build rejects bare directory args to --test; always name test files explicitly).
 
 ---
 
@@ -300,7 +300,7 @@ test("second-opinion embeds the verified codex recipe and the no-substitute rule
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `node --test plugins/lask/tests/`
+Run: `node --test plugins/lask/tests/content.test.mjs`
 Expected: FAIL (agents directory does not exist).
 
 - [ ] **Step 3: Create the seven agent definitions**
@@ -609,7 +609,7 @@ test("director-context.js source carries the policy tag and full roster", () => 
 
 - [ ] **Step 2: Run to verify the new tests fail**
 
-Run: `node --test plugins/lask/tests/`
+Run: `node --test plugins/lask/tests/content.test.mjs`
 Expected: the four new tests FAIL (skills missing / model-tiers still present); Task 3 tests still pass.
 
 - [ ] **Step 3: Create `plugins/lask/skills/director/SKILL.md`**
@@ -776,7 +776,7 @@ git rm -r plugins/lask/skills/model-tiers
 
 - [ ] **Step 6: Run all tests**
 
-Run: `node --test plugins/lask/tests/` and `node plugins/lask/hooks/scripts/tier.test.js`
+Run: `node --test plugins/lask/tests/content.test.mjs` and `node plugins/lask/hooks/scripts/tier.test.js`
 Expected: all pass, `0 failed`.
 
 - [ ] **Step 7: Commit**
@@ -834,7 +834,7 @@ test("README documents the roster, the skills, and all three test commands", () 
 
 - [ ] **Step 2: Run to verify the new tests fail**
 
-Run: `node --test plugins/lask/tests/`
+Run: `node --test plugins/lask/tests/content.test.mjs`
 Expected: three new tests FAIL (version still 1.1.0, README stale).
 
 - [ ] **Step 3: Create `plugins/lask/tests/e2e.test.mjs`**
@@ -944,9 +944,9 @@ Apply these changes (keep everything else, including install/update sections, as
 
 ```
 node plugins/lask/hooks/scripts/tier.test.js      # hook 行為測試
-node --test plugins/lask/tests/                   # 內容不變量（roster／skills／hooks／README）
-LASK_E2E=1 node --test plugins/lask/tests/        # headless E2E（燒 token；--plugin-dir 載入 repo 工作副本）
-LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/   # 安裝後 smoke（驗 user-scope 安裝）
+node --test plugins/lask/tests/content.test.mjs plugins/lask/tests/e2e.test.mjs   # 內容不變量（roster／skills／hooks／README）
+LASK_E2E=1 node --test plugins/lask/tests/e2e.test.mjs                            # headless E2E（燒 token；--plugin-dir 載入 repo 工作副本）
+LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/e2e.test.mjs      # 安裝後 smoke（驗 user-scope 安裝）
 ```
 
 > 需求：`node` 在 PATH 上；E2E 另需 `claude` CLI；`lask:second-opinion` 需已認證的 `codex` CLI。
@@ -979,7 +979,7 @@ plugins/
 
 - [ ] **Step 6: Run content + hook tests**
 
-Run: `node --test plugins/lask/tests/` and `node plugins/lask/hooks/scripts/tier.test.js`
+Run: `node --test plugins/lask/tests/content.test.mjs plugins/lask/tests/e2e.test.mjs` and `node plugins/lask/hooks/scripts/tier.test.js`
 Expected: all pass (e2e tests report `skipped`, that is correct).
 
 - [ ] **Step 7: Run the pre-install E2E against the working copy**
