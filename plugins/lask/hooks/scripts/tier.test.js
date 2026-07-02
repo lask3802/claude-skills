@@ -118,6 +118,7 @@ test('workflow: untier-ed agent() call -> deny with instructive reason', () => {
   assert(h && h.permissionDecision === 'deny', 'expected deny');
   assert(/sonnet/.test(h.permissionDecisionReason) && /opus/.test(h.permissionDecisionReason) && /fable/.test(h.permissionDecisionReason), 'reason must restate tiers');
   assert(/tier: reviewed/.test(h.permissionDecisionReason), 'reason must name the bypass marker');
+  assert(/lask:director/.test(h.permissionDecisionReason), 'reason must point at the director skill');
 });
 
 test('workflow: agent() with no opts at all -> deny', () => {

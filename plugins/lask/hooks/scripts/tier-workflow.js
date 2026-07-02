@@ -166,7 +166,8 @@ function main(raw) {
     "model: 'opus' (default: implementation, review, research, synthesis), or model: 'fable' (ONLY for explicitly assigned " +
     'deep-judgment tasks — justify in the agent prompt). An agentType with a pinned model also satisfies this. ' +
     `First offending call: \`${violations[0]}\`. ` +
-    'If this is a false positive, add a comment containing `tier: reviewed` at the top of the script.';
+    'If this is a false positive, add a comment containing `tier: reviewed` at the top of the script. ' +
+    'Full rubric: skill lask:director.';
 
   process.stdout.write(
     JSON.stringify({
