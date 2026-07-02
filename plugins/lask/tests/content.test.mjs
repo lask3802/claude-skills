@@ -76,6 +76,8 @@ test("second-opinion embeds the verified codex recipe and the no-substitute rule
   const src = read("agents/second-opinion.md");
   assert.match(src, /codex exec --sandbox read-only --skip-git-repo-check --color never/);
   assert.match(src, /--output-last-message/);
+  assert.match(src, /- < "/, "prompt must travel via stdin redirection, not a shell argument");
+  assert.match(src, /never as a shell argument/i);
   assert.match(src, /never substitute/i);
   assert.match(src, /no adoption decisions/i);
 });
@@ -140,4 +142,14 @@ test("README documents the roster, the skills, and all three test commands", () 
   assert.match(readme, /node --test plugins\/lask\/tests\//);
   assert.match(readme, /LASK_E2E=1/);
   assert.ok(!/lask:model-tiers/.test(readme), "README must not reference the retired skill");
+});
+
+test("marketplace.json lask entry version matches plugin.json", () => {
+  const marketplace = JSON.parse(
+    fs.readFileSync(path.join(PLUGIN_ROOT, "..", "..", ".claude-plugin", "marketplace.json"), "utf8"),
+  );
+  const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
+  const entry = JSON.stringify(marketplace);
+  assert.match(entry, new RegExp(pkg.version.replace(/\./g, "\\.")), "marketplace must reference the current plugin version");
+  assert.ok(!entry.includes("1.1.0"), "stale 1.1.0 version must not remain in marketplace.json");
 });

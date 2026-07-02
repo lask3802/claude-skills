@@ -12,8 +12,8 @@
     {
       "name": "lask",
       "source": "./plugins/lask",
-      "description": "Personal skill pack. Skills: handoff — self-contained session-handoff document; model-tiers — spawned-agent model tiering (sonnet/opus/fable) enforced by hooks so subagents, agent teams and ultracode workflows never inherit the expensive main-loop model by default.",
-      "version": "1.1.0",
+      "description": "Director-mode delegation for the main session (seven-agent roster, playbooks, calibrated verification, Codex second opinions), hook-enforced model tiering for spawned agents, plus handoff.",
+      "version": "1.2.0",
       "author": {
         "name": "lask3802"
       },

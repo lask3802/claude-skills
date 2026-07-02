@@ -88,7 +88,7 @@ roster self-governs its models.
 | `reviewer` | opus | read-only | First-pass review: correctness/risk/style, severity-ranked findings; fable reads only high-severity + spot checks |
 | `second-opinion` | sonnet | Bash, Read | Third-party cross-model review: thin wrapper that runs the Codex CLI (`codex exec --sandbox read-only --output-last-message <file>`) against a spec/plan/diff and relays findings faithfully — it holds no opinion of its own and makes no adoption decisions. Exists because plans finished by one model family share blind spots; a different model catches them. Direct CLI use avoids the codex-rescue relayed-authorization gate |
 
-Every agent body embeds the same two contracts, tailored per role:
+The four-piece input contract is the DIRECTOR'S obligation, stated in the director skill's dispatch template; each agent body embeds the report protocol and names the input slice it depends on (implementer and verifier: acceptance criteria; second-opinion: targets and focus questions):
 
 **Input contract** (what a dispatch prompt must contain — the "four-piece
 set"): goal, scope (files to touch / not touch), constraints, acceptance
@@ -155,7 +155,7 @@ not a reason) and never silently drop.
 | Main session ignores guidance (v1 has no enforcement) | Accepted by design; injection re-fires on compact; v2 adds hooks |
 | Agent defs updated but session already running | Plugin content loads at session start; changes need a new session (documented in README) |
 | node not on PATH | Hooks no-op non-blocking (unchanged from 1.1.0) |
-| Roster agent misused (e.g. verifier asked to fix) | Tool restrictions in frontmatter make violations fail loudly |
+| Roster agent misused (e.g. verifier asked to fix) | File-tool mutation is blocked by the tools allowlist (no Edit/Write); Bash-mediated mutation is constrained by prose and review — a known, accepted gap until v2 enforcement |
 
 ## Testing
 

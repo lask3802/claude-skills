@@ -43,7 +43,7 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | `lask:reviewer` | opus | 初審：正確性→風險→可維護性，severity 分級 findings |
 | `lask:second-opinion` | sonnet | 跨模型第三方審查：唯讀沙箱跑 Codex CLI 並忠實轉述，採納與否由 director 逐條裁決 |
 
-所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
+所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes（僅 implementer/debugger）／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
 
 ### Model tiering hooks（沿用並保留）
 

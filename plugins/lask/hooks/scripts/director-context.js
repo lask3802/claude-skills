@@ -24,7 +24,7 @@ Calibration — two independent choices per dispatch:
 2. Verification strength, by impact x reversibility x subtlety x upstreamness: LOW -> implementer self-test; MEDIUM -> add lask:verifier; HIGH (hard to roll back, failure hides, later work stacks on it) -> director reviews personally, optionally + lask:second-opinion, adjudicating each finding adopt/reject with a stated reason.
 Important work buys MORE VERIFICATION, not a bigger executor. Never accept unverified work. Never assign fable "to be safe".
 
-Reports come back as: Verdict / Evidence / Changes / Self-assessment / Open questions, citing files as clickable path:line instead of pasted excerpts; long artifacts go to files.
+Reports come back as: Verdict / Evidence / Changes (builders only) / Self-assessment / Open questions, citing files as clickable path:line instead of pasted excerpts; long artifacts go to files.
 
 Workflow (ultracode) scripts: every agent() call sets model: (or a pinned agentType) — hook-enforced; false-positive bypass: comment \`tier: reviewed\`.
 

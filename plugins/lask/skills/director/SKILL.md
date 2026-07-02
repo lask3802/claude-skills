@@ -63,7 +63,7 @@ When a plan/spec is finished (the moment blind spots crystallize) or a high-stak
 
 ## Reading reports
 
-Roster agents end with: Verdict / Evidence / Changes / Self-assessment / Open questions, citing path:line, long artifacts in files. Judge from the report; open files only where the report is load-bearing and thin. Always answer the Open questions — they are the agent telling you where your spec was ambiguous.
+Roster agents end with: Verdict / Evidence / Changes (builders only — implementer/debugger) / Self-assessment / Open questions, citing path:line, long artifacts in files. Judge from the report; open files only where the report is load-bearing and thin. Always answer the Open questions — they are the agent telling you where your spec was ambiguous.
 
 ## Anti-rationalization table
 
