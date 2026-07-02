@@ -116,10 +116,10 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.2.0 and describes director mode", () => {
+test("plugin.json is 1.3.0 and describes director mode", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.2.0");
+  assert.equal(pkg.version, "1.3.0");
   assert.match(pkg.description, /director/i);
 });
 
@@ -133,14 +133,48 @@ test("hooks.json wires the three hooks to existing scripts", () => {
     assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", s)), `${s} must exist`);
 });
 
+test("hooks.json wires the director-enforce hook with an anchored matcher and plugin data dir", () => {
+  const hooks = JSON.parse(read("hooks/hooks.json"));
+  const pre = hooks.hooks.PreToolUse;
+  const entry = pre.find((e) => /director-enforce\.js/.test(JSON.stringify(e.hooks)));
+  assert.ok(entry, "a PreToolUse entry must invoke director-enforce.js");
+  assert.equal(entry.matcher, "^(Edit|Write|NotebookEdit)$", "matcher must be anchored to the three edit tools");
+  const cmd = entry.hooks[0].command;
+  assert.match(cmd, /\$\{CLAUDE_PLUGIN_ROOT\}/, "command must resolve the script via CLAUDE_PLUGIN_ROOT");
+  assert.match(cmd, /\$\{CLAUDE_PLUGIN_DATA\}/, "command must pass the state dir via CLAUDE_PLUGIN_DATA");
+  assert.ok(
+    fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "director-enforce.js")),
+    "director-enforce.js must exist",
+  );
+});
+
+test("director-enforce.js source keeps the fail-open contract and the ladder constants", () => {
+  const src = read("hooks/scripts/director-enforce.js");
+  assert.match(src, /MAX_TRIVIAL_LINES\s*=\s*10/);
+  assert.match(src, /NUDGE_STRIKES\s*=\s*2/);
+  assert.match(src, /agent_id/, "must key subagent detection off agent_id");
+  assert.match(src, /\.handson/, "must implement the per-session hands-on flag");
+  assert.match(src, /lask:implementer/, "nudge/deny text must point at lask:implementer");
+});
+
+test("director skill documents the enforcement hook and its escape hatch", () => {
+  const body = read("skills/director/SKILL.md");
+  assert.match(body, /## Hooks shipped with this plugin/);
+  assert.match(body, /Edit\/Write\/NotebookEdit|direct file edit/i, "hooks section must name the enforcement hook");
+  assert.match(body, /hands-on/i, "hooks section must document the hands-on escape hatch");
+});
+
 test("README documents the roster, the skills, and all three test commands", () => {
   const readme = fs.readFileSync(path.join(PLUGIN_ROOT, "..", "..", "README.md"), "utf8");
   for (const a of AGENTS) assert.match(readme, new RegExp(`lask:${a}`), `README must document lask:${a}`);
   assert.match(readme, /lask:director/);
   assert.match(readme, /lask:delegation-playbooks/);
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/tier\.test\.js/);
+  assert.match(readme, /node plugins\/lask\/hooks\/scripts\/enforce\.test\.js/, "README must list the enforce.test.js command");
   assert.match(readme, /node --test plugins\/lask\/tests\//);
   assert.match(readme, /LASK_E2E=1/);
+  assert.match(readme, /director-enforce/, "README must document the enforcement hook");
+  assert.match(readme, /hands-on/i, "README must document the hands-on escape hatch");
   assert.ok(!/lask:model-tiers/.test(readme), "README must not reference the retired skill");
 });
 

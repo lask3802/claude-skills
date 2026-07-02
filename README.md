@@ -45,20 +45,28 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 
 所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes（僅 implementer/debugger）／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
 
-### Model tiering hooks（沿用並保留）
+### Hooks（沿用並保留 + v2 enforcement）
 
-- **PreToolUse `Agent`/`Task`**：spawn 沒帶 `model` 時自動改寫——內建 `Explore` → sonnet、其餘 → opus。明確傳入的 `model`（含 fable）一律尊重；含 `:` 的 plugin agent 交給其定義決定。
-- **PreToolUse `Workflow`**：ultracode script 中每個 `agent()` 都必須帶 `model:`（或 pinned `agentType`），否則整個呼叫被擋下並附修正指示；誤判時在 script 加註解 `tier: reviewed` 略過。
-- 設計原則 **fail-open**：hook 出錯只會退化成「沒有政策」，不會弄壞 spawn。主 session 模型完全不受影響。
+- **PreToolUse `Agent`/`Task`**（`tier-agent.js`）：spawn 沒帶 `model` 時自動改寫——內建 `Explore` → sonnet、其餘 → opus。明確傳入的 `model`（含 fable）一律尊重；含 `:` 的 plugin agent 交給其定義決定。
+- **PreToolUse `Workflow`**（`tier-workflow.js`）：ultracode script 中每個 `agent()` 都必須帶 `model:`（或 pinned `agentType`），否則整個呼叫被擋下並附修正指示；誤判時在 script 加註解 `tier: reviewed` 略過。
+- **PreToolUse `Edit`/`Write`/`NotebookEdit`**（`director-enforce.js`，1.3.0 新增）：只針對**主 session**的直接檔案編輯。決策階梯（每 session 計數）：
+  - 瑣碎編輯（≤10 行、且本 session 累計 ≤1 個檔案）→ 靜默放行、不計 strike。
+  - 其餘 → strike++；strike 1–2 以 `additionalContext` **提醒但放行**（事實陳述句，附本 session 的計數與 `lask:implementer` 指引），strike ≥3 **拒絕**（並說明派遣或開啟 hands-on 後即可重試）。
+  - **hands-on 逃生門**：使用者授權動手時，建立訊息中所示的旗標檔 `<CLAUDE_PLUGIN_DATA>/enforce/<session_id>.handson`，該 session 即完全豁免。subagent 的編輯（stdin 帶 `agent_id`）永遠不計——那正是預期的分工路徑。
+- 設計原則 **fail-open**：任何 hook 出錯（stdin 壞掉、缺欄位、state 目錄不可寫……）只會退化成「沒有政策」、`exit 0` 不輸出，絕不弄壞編輯或 spawn。主 session 模型完全不受影響。設計文件：`docs/superpowers/specs/2026-07-02-director-mode-v2-enforcement.md`。
 
 ### 測試（plugin 當 production 對待）
 
 ```
-node plugins/lask/hooks/scripts/tier.test.js      # hook 行為測試
+node plugins/lask/hooks/scripts/tier.test.js      # model-tiering hook 行為測試
+node plugins/lask/hooks/scripts/enforce.test.js   # director-enforce hook 行為測試（12 案）
 node --test plugins/lask/tests/content.test.mjs plugins/lask/tests/e2e.test.mjs   # 內容不變量（roster／skills／hooks／README）
 LASK_E2E=1 node --test plugins/lask/tests/e2e.test.mjs                            # headless E2E（燒 token；--plugin-dir 載入 repo 工作副本）
+LASK_E2E=1 LASK_E2E_DISPATCH=1 node --test plugins/lask/tests/e2e.test.mjs        # 另含 lask:scout 實地派遣 sentinel 驗證（雙重 gate）
 LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/e2e.test.mjs      # 安裝後 smoke（驗 user-scope 安裝）
 ```
+
+> 測試指令一律具名列出檔案（本機 node 拒絕 `--test` 只給目錄）。
 
 > 需求：`node` 在 PATH 上；E2E 另需 `claude` CLI；`lask:second-opinion` 需已認證的 `codex` CLI。
 > 設計文件：`docs/superpowers/specs/2026-07-02-director-mode-design.md`（前身：`2026-06-11-model-tiering-design.md`）。
@@ -89,12 +97,14 @@ plugins/
     .claude-plugin/
       plugin.json
     hooks/
-      hooks.json            # SessionStart + PreToolUse(Agent|Task, Workflow)
+      hooks.json            # SessionStart + PreToolUse(Agent|Task, Workflow, Edit|Write|NotebookEdit)
       scripts/
         director-context.js # 注入 director-mode 政策
         tier-agent.js       # spawn 未帶 model → 改寫為 opus/sonnet
         tier-workflow.js    # 驗證 workflow script 的 agent() 都有分級
-        tier.test.js        # hook 行為測試
+        director-enforce.js # 主 session 直接編輯 → 提醒→拒絕（hands-on 逃生門）
+        tier.test.js        # model-tiering hook 行為測試
+        enforce.test.js     # director-enforce hook 行為測試
     agents/                 # 七人編制（scout/researcher/implementer/debugger/verifier/reviewer/second-opinion）
     skills/
       director/             # 核心 rubric

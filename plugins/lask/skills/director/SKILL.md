@@ -81,4 +81,5 @@ Roster agents end with: Verdict / Evidence / Changes (builders only — implemen
 
 - Agent/Task spawns without `model`: hook rewrites — built-in Explore→sonnet, others→opus. Explicit `model` is always respected (including a justified fable). Plugin-namespaced types (`lask:*`, `codex:*`) keep their definition's model.
 - Workflow (ultracode) scripts: every `agent()` call must set `model:` or a pinned `agentType`, or the call is denied with instructions. False positive? Add a comment containing `tier: reviewed`.
+- Main-session direct file edits (Edit/Write/NotebookEdit): trivial single-file edits (≤10 lines, one file) pass silently; larger or multi-file hands-on work is nudged (strikes 1–2) then denied (strike 3+), each message naming the tally and `lask:implementer`. Escape hatch when the user authorizes hands-on work: create the per-session flag file the message names (`<CLAUDE_PLUGIN_DATA>/enforce/<session_id>.handson`); subagent edits are exempt (never counted).
 - Everything fails open: a broken hook degrades to no policy, never to broken spawning.

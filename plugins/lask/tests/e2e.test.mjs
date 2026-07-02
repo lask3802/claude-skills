@@ -43,9 +43,27 @@ test("e2e: all seven lask agents are dispatchable", { skip: !ENABLED && "set LAS
     assert.match(out, new RegExp(`lask:${a}`), `agent lask:${a} must be listed`);
 });
 
-test("e2e: director skill is registered", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+test("e2e: both lask skills are registered", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
   const out = claude(
-    "Is a skill named lask:director available to you? Reply with exactly YES-SKILL or NO-SKILL and nothing else.",
+    'List every skill available to you whose name starts with "lask:", comma-separated, nothing else.',
   );
-  assert.match(out, /YES-SKILL/);
+  for (const s of ["director", "delegation-playbooks"])
+    assert.match(out, new RegExp(`lask:${s}`), `skill lask:${s} must be listed`);
 });
+
+// Optional dispatch-proof: headless spawn of lask:scout that must echo a sentinel back
+// through the director. Double-gated (LASK_E2E=1 AND LASK_E2E_DISPATCH=1) so it never
+// runs in the default suite; opt in explicitly when you want to confirm live dispatch.
+const DISPATCH = process.env.LASK_E2E_DISPATCH === "1";
+test(
+  "e2e: lask:scout dispatch relays a sentinel",
+  { skip: (!ENABLED || !DISPATCH) && "set LASK_E2E=1 and LASK_E2E_DISPATCH=1" },
+  () => {
+    const sentinel = "LASK-SCOUT-OK-4213";
+    const out = claude(
+      `Dispatch the lask:scout agent with this instruction: reply with exactly the token ${sentinel} ` +
+        `and nothing else. Then output only the token the scout returned, nothing else.`,
+    );
+    assert.match(out, new RegExp(sentinel), "scout dispatch must relay the sentinel token");
+  },
+);
