@@ -44,7 +44,8 @@ Three layers inside `plugins/lask/`, plus the retained 1.1.0 enforcement hooks.
 ### Layer 1 — Constitution: `hooks/scripts/director-context.js`
 
 Replaces `tier-context.js` (hooks.json path updated; same SessionStart matcher
-`startup|clear|compact`). Injects ~400 tokens:
+`startup|clear|compact`). Injects ~600 tokens (measured; the roster and
+calibration table are load-bearing and worth the recurring cost):
 
 - **Role**: main session (usually fable) is the director. Five duties:
   understand, decide, dispatch, verify, communicate. It does not implement.

@@ -14,7 +14,7 @@
 - All plugin content (skills, agents, injected context, README code identifiers) in English; README prose stays Traditional Chinese as it is today.
 - No new dependencies, no package.json. Node built-ins only.
 - Roster agents NEVER pin `model: fable` (calibration puts fable in review, not execution). Allowed values: `sonnet`, `opus`.
-- The SessionStart injection must stay compact (~450 tokens) — it is the plugin's only recurring token cost.
+- The SessionStart injection must stay compact (~600 tokens measured — it is the plugin's only recurring token cost; content is load-bearing, do not trim to hit a number).
 - Fail-open principle for all hooks is unchanged: any hook error must degrade to a no-op, never break spawning.
 - Every file reference in agent reports and skills uses the clickable `path:line` form; agent definitions must state this rule.
 - Commit after every task with the exact message given in the task. Do NOT push until Task 6.
@@ -918,7 +918,7 @@ Apply these changes (keep everything else, including install/update sections, as
 ```markdown
 ## Director mode（安裝即生效）
 
-主 session（通常是 fable）只負責判斷：理解、決策、派遣、驗收、溝通；實作與蒐集交給內建 agent 編制。SessionStart 注入一段 `<lask-director-policy>`（唯一常駐 token 開銷，約 450 tokens），內含直接動手門檻（單檔 ≤10 行）、編制名單與「執行者模型 × 驗證強度」情境校準表 —— 重要工作買的是更多驗證，不是更大的執行模型。
+主 session（通常是 fable）只負責判斷：理解、決策、派遣、驗收、溝通；實作與蒐集交給內建 agent 編制。SessionStart 注入一段 `<lask-director-policy>`（唯一常駐 token 開銷，約 600 tokens），內含直接動手門檻（單檔 ≤10 行）、編制名單與「執行者模型 × 驗證強度」情境校準表 —— 重要工作買的是更多驗證，不是更大的執行模型。
 
 ### Agent 編制（`Agent` tool 以 `subagent_type` 派遣）
 
