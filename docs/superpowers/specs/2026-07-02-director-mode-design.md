@@ -52,7 +52,7 @@ Replaces `tier-context.js` (hooks.json path updated; same SessionStart matcher
   files to form judgment, (b) make trivial single-file edits ≤10 lines,
   (c) talk to the user. Everything else — multi-file implementation, broad
   searches, test loops, mechanical rewrites, doc generation — is dispatched.
-- **Roster**: one line listing the six agents and when to use each.
+- **Roster**: one line listing the seven agents and when to use each.
 - **Calibration table** (replaces the rigid type table): per dispatch, two
   independent decisions —
   - *Executor model*: mechanical → sonnet/Explore; normal engineering → opus;
@@ -61,7 +61,9 @@ Replaces `tier-context.js` (hooks.json path updated; same SessionStart matcher
   - *Verification strength*, by impact × reversibility × subtlety ×
     upstreamness: low → implementer self-test suffices; medium → dispatch
     verifier; high (hard to roll back, failure is hidden, later work stacks
-    on it) → fable reviews personally (or a justified fable reviewer).
+    on it) → fable reviews personally, optionally adding a cross-model
+    second opinion (Codex via `second-opinion`) whose findings fable
+    adjudicates one by one.
 - **Anti-patterns**: "faster to do it myself" (snowballs), "fable to be safe"
   (add verification, not model size), "accept opus output unverified".
 - Pointer to `lask:director` for the full rubric.
@@ -83,6 +85,7 @@ roster self-governs its models.
 | `debugger` | opus | full | Systematic root-cause investigation; report cause, evidence chain, fix options; no unilateral large changes |
 | `verifier` | opus | run commands, no file edits | Acceptance officer: check the dispatch's acceptance criteria item by item; report facts only. Deliberately separate from implementer — builders don't grade their own work |
 | `reviewer` | opus | read-only | First-pass review: correctness/risk/style, severity-ranked findings; fable reads only high-severity + spot checks |
+| `second-opinion` | sonnet | Bash, Read | Third-party cross-model review: thin wrapper that runs the Codex CLI (`codex exec --sandbox read-only --output-last-message <file>`) against a spec/plan/diff and relays findings faithfully — it holds no opinion of its own and makes no adoption decisions. Exists because plans finished by one model family share blind spots; a different model catches them. Direct CLI use avoids the codex-rescue relayed-authorization gate |
 
 Every agent body embeds the same two contracts, tailored per role:
 
@@ -124,11 +127,17 @@ verification strength):
 
 | Scenario | Loop |
 |---|---|
-| feature | scout ∥ researcher → fable specs → implementer → verifier → fable final review only if high-stakes |
+| feature | scout ∥ researcher → fable specs → **second-opinion on the spec (cross-model), fable adjudicates** → implementer → verifier → fable final review only if high-stakes |
 | bugfix | debugger root-cause → fable picks fix → implementer → verifier (incl. regression) |
 | research | researcher ∥ scout fan-out → fable synthesizes |
 | refactor | scout maps blast radius → fable sets strategy → implementer in batches → verifier proves behavior unchanged |
-| review | reviewer first pass → fable reads high-severity + spot checks → verdict |
+| review | reviewer ∥ second-opinion (independent, parallel) → fable merges, reads high-severity + spot checks → verdict |
+
+**Cross-model review protocol** (in the director skill): after fable finishes
+a plan/spec (the "企畫 done" moment) or before accepting a high-stakes change,
+dispatch `second-opinion`; fable then adjudicates each finding explicitly —
+adopt / reject with a stated reason, never blanket-accept ("Codex said so" is
+not a reason) and never silently drop.
 
 ### Retained hooks (1.1.0, adjusted)
 
@@ -149,24 +158,37 @@ verification strength):
 
 ## Testing
 
-Extend `hooks/scripts/tier.test.js` (plain Node, no deps):
-- director-context.js: emits valid hookSpecificOutput JSON; text contains
-  roster names, calibration keywords, direct-work threshold.
-- tier-workflow.js deny text cites `lask:director`.
-- Roster lint: all six `agents/*.md` parse, frontmatter has
-  name/description/model/tools, body contains "Report protocol" and the
-  `path:line` rule; no agent pins fable.
-- Existing tier-agent/tier-workflow cases unchanged.
+The plugin is production software; three test layers (all plain Node, no deps):
 
-Post-install verification: cache shows 1.2.0; headless `claude -p` session
-confirms the new injection text appears and `lask:scout` is dispatchable.
+1. **Hook behavior** — `hooks/scripts/tier.test.js` (existing runner, updated):
+   pipes PreToolUse/SessionStart JSON through each script; director-context.js
+   emits valid hookSpecificOutput; tier-workflow.js deny text cites
+   `lask:director`; existing tier-agent/tier-workflow cases unchanged.
+2. **Content invariants** — `tests/content.test.mjs` (`node --test`, same
+   pattern the openai-codex plugin uses): plugin.json/hooks.json parse and
+   point at existing files; exactly seven `agents/*.md` with the exact name
+   set; every agent frontmatter has name (= filename), description, model ∈
+   {sonnet, opus} (never fable), and every body carries the report protocol,
+   the `path:line` rule, and the input contract; `second-opinion` embeds the
+   verified `codex exec --sandbox read-only` recipe; skills director +
+   delegation-playbooks exist, model-tiers is gone; director names all seven
+   agents; README documents agents and test commands.
+3. **Headless E2E** — `tests/e2e.test.mjs`, gated by `LASK_E2E=1` (costs
+   tokens): runs `claude --plugin-dir <repo>/plugins/lask --model sonnet -p`
+   against the WORKING COPY (pre-install, session-only plugin load) and
+   asserts (a) the `<lask-director-policy>` block is in context, (b) the
+   `lask:*` agents are listed as available, (c) the lask skills are
+   registered. After install, the same suite without `--plugin-dir` smokes
+   the user-scope installation.
 
 ## Install
 
 1. `plugin.json` → 1.2.0; README updated; commit + push (noreply email).
 2. `claude plugin marketplace update claude-skills`, then
    `claude plugin update lask@claude-skills` (user scope).
-3. Update auto-memory (marketplace entry + tiering-policy entry).
+3. Post-install smoke: cache shows 1.2.0; `LASK_E2E=1` suite passes against
+   the installed plugin (no `--plugin-dir`).
+4. Update auto-memory (marketplace entry + tiering-policy entry).
 
 ## Out of scope / v2
 
