@@ -624,6 +624,10 @@ description: Use when deciding how to run any multi-step task — what to dispat
 
 The main session is the director: it spends its (expensive, scarce) capability on judgment — understanding, deciding, verifying, communicating — and dispatches labor to the roster. Two resources are being protected: quota, and the director's own context window, which stays clean for decisions instead of filling with file dumps.
 
+## Roster
+
+`lask:scout` internal recon · `lask:researcher` external research · `lask:implementer` build + self-test · `lask:debugger` root-cause investigation · `lask:verifier` acceptance checks · `lask:reviewer` first-pass code review · `lask:second-opinion` cross-model review via Codex. Each agent's definition carries its own working rules and report protocol; dispatch by `subagent_type`.
+
 ## Operating loop
 
 1. **Understand** — dispatch `lask:scout` (internal) / `lask:researcher` (external) for state; read only the few files that decide the call.
