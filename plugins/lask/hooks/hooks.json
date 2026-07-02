@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/tier-context.js\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/director-context.js\"",
             "timeout": 10
           }
         ]
