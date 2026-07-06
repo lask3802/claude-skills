@@ -40,6 +40,23 @@ baselines), T2-treat (block via prompt), T1 + T3D (installed production
 config). Every trap class that Opus was tested on is now also covered on
 Codex except T3-plain (subsumed by its harder variants T3P/T3D, both passed).
 
+## Codex skill-system probes (2026-07-06, after user correction that Codex HAS a skill system)
+
+Codex skill protocol confirmed: `~/.codex/skills/<name>/SKILL.md`, same
+agentskills.io spec as Claude. fable-sense installed there.
+
+| Probe | Result |
+|---|---|
+| Roster injection | `codex exec` context carries the full skill list (discovery probe returned all ~110 names without reading files) |
+| Named invocation | PASS — "Engage the fable-sense skill" → codex read SKILL.md, returned the exact six brief fields |
+| Description auto-trigger on hard task (T3P, AGENTS.md removed) | DID NOT FIRE (n=1) — codex investigated directly, never opened the skill; task itself still solved at the bar (tz refuted, set-order fix, seed sweep) |
+| Trivial task on production config (block+skill) | PASS — 1-line fix, 0 skill reads, no ceremony |
+
+Architecture consequence: the always-loaded AGENTS.md block REMAINS the
+trigger mechanism (auto-trigger unreliable); the skills-dir copy adds named
+invocation ("use the fable-sense skill") and distribution parity. Mirrors the
+Claude side: CLAUDE.md trigger line + skill body.
+
 ## Tail-guard probe
 
 `claude -p` adversarial review of templates/T3/report.py: exit 0, **78 s**,

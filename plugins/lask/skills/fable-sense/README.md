@@ -12,15 +12,24 @@ Fable's removal from subscription access.
 
 | Piece | Path | Consumer |
 |---|---|---|
-| Skill (protocol, Claude adapter) | this directory's `SKILL.md` | Claude Code (any model) — `/lask:fable-sense` when installed via the lask plugin, `/fable-sense` as a bare `~/.claude/skills/` copy |
-| Codex adapter (manual install) | copy `codex-agents-block.md` into `~/.codex/AGENTS.md` (marked block) | every `codex` session |
+| Skill (protocol) | this directory's `SKILL.md` | Claude Code (any model) — `/lask:fable-sense` when installed via the lask plugin, `/fable-sense` as a bare `~/.claude/skills/` copy |
+| Codex skill (manual install) | copy `SKILL.md` to `~/.codex/skills/fable-sense/SKILL.md` — Codex uses the same agentskills.io folder spec | named invocation in every `codex` session ("use the fable-sense skill") |
+| Codex trigger block (manual install) | copy `codex-agents-block.md` into `~/.codex/AGENTS.md` (marked block) | every `codex` session, always loaded |
 | Optional trigger line (manual install) | a marked `FABLE-SENSE` block in `~/.claude/CLAUDE.md` telling sessions to invoke the skill for hard tasks | every Claude session |
 | Eval harness + evidence | `eval/` (templates, pre-registered RUBRICS.md, all run answers, grades) | re-validation |
 | Design doc + results | `docs/design.md` | humans |
 
-The Claude side works as soon as the plugin is installed. The Codex side and
+The Claude side works as soon as the plugin is installed. The Codex pieces and
 the CLAUDE.md trigger are per-machine one-time copies — the plugin cannot
 write outside its own directory.
+
+**Why Codex needs BOTH the skill and the AGENTS.md block** (measured
+2026-07-06): `codex exec` injects the skill roster into every session and
+named invocation reliably loads the skill — but description-based
+auto-triggering did not fire on a hard trap task (n=1). So the always-loaded
+block remains the trigger; the skills-dir copy provides named invocation and
+distribution parity. This mirrors the Claude side, where the CLAUDE.md line
+does the triggering.
 
 ## The empirical basis (read before trusting)
 

@@ -26,7 +26,7 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | `/lask:handoff` | 產生一份自足、可直接複製的「交接文件」（目標、檔案+行號、關鍵發現、決策、現況、下一步），整則訊息就是文件，用 `/copy` 貼到新 session 或交給其他 agent。支援 `/lask:handoff <focus>` 聚焦、`/lask:handoff --file` 另存 HANDOFF.md。 |
 | `/lask:director` | Director-mode 完整 rubric：操作迴圈、派遣 prompt 四件套、執行者模型與驗證強度的情境校準表、跨模型 second-opinion 裁決守則。 |
 | `/lask:delegation-playbooks` | 五大場景（feature／bugfix／research／refactor／review）的標準派遣迴圈、現成 dispatch prompt 與升級點。 |
-| `/lask:fable-sense` | 高難度／模糊／高風險任務的「條件工程」紀律：任務書（brief）模板、新鮮派發、調查式措辭（絕不把猜測嵌進派發）、執行證據、跨模型尾部防護（codex exec ↔ claude -p，≥10 分鐘 timeout）。實證基礎：19 次預先登錄評測全數達標（Opus 4.8＋Codex gpt-5.5），證明拉開差距的是條件而非模型智力；附凍結的 `eval/` 供模型更新後重驗。Codex 端另有 `codex-agents-block.md` 可手動裝進 `~/.codex/AGENTS.md`。機械性任務自動跳過。 |
+| `/lask:fable-sense` | 高難度／模糊／高風險任務的「條件工程」紀律：任務書（brief）模板、新鮮派發、調查式措辭（絕不把猜測嵌進派發）、執行證據、跨模型尾部防護（codex exec ↔ claude -p，≥10 分鐘 timeout）。實證基礎：19 次預先登錄評測全數達標（Opus 4.8＋Codex gpt-5.5），證明拉開差距的是條件而非模型智力；附凍結的 `eval/` 供模型更新後重驗。Codex 端雙軌手動安裝：`SKILL.md` 複製到 `~/.codex/skills/fable-sense/`（同 agentskills.io 規格，供點名調用），`codex-agents-block.md` 裝進 `~/.codex/AGENTS.md`（常駐觸發——實測描述式自動觸發不可靠，區塊不可省）。機械性任務自動跳過。 |
 
 ## Director mode（安裝即生效）
 
