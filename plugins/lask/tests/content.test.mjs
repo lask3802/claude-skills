@@ -108,6 +108,26 @@ test("model-tiers is retired and handoff survives", () => {
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "handoff", "SKILL.md")));
 });
 
+test("fable-sense ships the conditions discipline with its evidence and adapters", () => {
+  const { fm, body } = parseFrontmatter(read("skills/fable-sense/SKILL.md"));
+  assert.equal(fm.name, "fable-sense");
+  assert.ok(fm.description && fm.description.length >= 60, "description too short to trigger reliably");
+  assert.match(fm.description, /^Use when /, "description must state triggering conditions, not workflow");
+  assert.match(fm.description, /Not for mechanical tasks/, "description must carry the skip-gate");
+  for (const field of ["TASK:", "REAL GOAL:", "DELIVERABLE:", "STAKES:", "CONSTRAINTS:", "EVIDENCE FIRST:"])
+    assert.match(body, new RegExp(field), `brief template must include ${field}`);
+  assert.match(body, /codex exec --sandbox read-only/, "Claude->Codex tail guard must embed the verified recipe");
+  assert.match(body, /claude -p/, "Codex->Claude tail guard must be present");
+  assert.match(body, /10 minutes/, "must carry the measured timeout guidance");
+  assert.match(body, /Skip this skill entirely/, "quick reference must keep the mechanical-task skip row");
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "codex-agents-block.md")), "codex adapter must ship");
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "eval", "RUBRICS.md")), "pre-registered rubrics must ship for re-validation");
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "eval", "results", "grades.md")), "graded evidence must ship");
+  const block = read("skills/fable-sense/codex-agents-block.md");
+  assert.match(block, /BEGIN FABLE-SENSE/, "codex block must be marker-delimited for clean install/uninstall");
+  assert.match(block, /skip this entirely/i, "codex block must carry the skip-gate");
+});
+
 test("director-context.js source carries the policy tag and full roster", () => {
   const src = read("hooks/scripts/director-context.js");
   assert.match(src, /<lask-director-policy>/);
@@ -116,11 +136,12 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.3.0 and describes director mode", () => {
+test("plugin.json is 1.4.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.3.0");
+  assert.equal(pkg.version, "1.4.0");
   assert.match(pkg.description, /director/i);
+  assert.match(pkg.description, /fable-sense/);
 });
 
 test("hooks.json wires the three hooks to existing scripts", () => {

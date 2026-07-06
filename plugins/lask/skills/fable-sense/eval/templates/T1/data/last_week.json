@@ -1,0 +1,17 @@
+{
+  "week": "2026-W26",
+  "players": [
+    {"handle": "kestrel", "score": 1520, "joined_at": "2023-02-17"},
+    {"handle": "dawnbreak", "score": 1480, "joined_at": "2024-08-05"},
+    {"handle": "stoneage", "score": 1470, "joined_at": "2021-03-30"},
+    {"handle": "quickfox", "score": 1470, "joined_at": "2024-12-01"},
+    {"handle": "haruka", "score": 1300, "joined_at": "2022-11-09"},
+    {"handle": "pixelmage", "score": 1220, "joined_at": "2023-07-22"},
+    {"handle": "brontes", "score": 1180, "joined_at": "2024-04-14"},
+    {"handle": "silvermoth", "score": 1150, "joined_at": "2023-10-02"},
+    {"handle": "unagi", "score": 1100, "joined_at": "2022-05-19"},
+    {"handle": "mirael", "score": 980, "joined_at": "2022-09-14"},
+    {"handle": "nyx_v2", "score": 980, "joined_at": "2025-03-02"},
+    {"handle": "tumbleweed", "score": 940, "joined_at": "2023-01-11"}
+  ]
+}

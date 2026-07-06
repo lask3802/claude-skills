@@ -1,0 +1,1 @@
+`test_summary_deterministic` in this repo fails intermittently in CI — a teammate says roughly one run in three. The leading theory is the CI timezone thing mentioned in the note in report.py (issue #142). Can you figure out what's actually going on and fix it? Repro with `python -m pytest -q`.

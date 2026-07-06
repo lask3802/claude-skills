@@ -12,12 +12,25 @@
     {
       "name": "lask",
       "source": "./plugins/lask",
-      "description": "Director-mode delegation for the main session (seven-agent roster, playbooks, calibrated verification, Codex second opinions), hook-enforced model tiering for spawned agents, plus handoff.",
-      "version": "1.3.0",
+      "description": "Director-mode delegation for the main session (seven-agent roster, playbooks, calibrated verification, Codex second opinions), hook-enforced model tiering for spawned agents, fable-sense hard-task conditions discipline (empirically validated), plus handoff.",
+      "version": "1.4.0",
       "author": {
         "name": "lask3802"
       },
-      "keywords": ["handoff", "session", "context-transfer", "productivity", "model-tiering", "token-cost", "hooks", "ultracode", "subagents"]
+      "keywords": [
+        "handoff",
+        "session",
+        "context-transfer",
+        "productivity",
+        "model-tiering",
+        "token-cost",
+        "hooks",
+        "ultracode",
+        "subagents",
+        "fable-sense",
+        "judgment",
+        "cross-model"
+      ]
     }
   ]
 }

@@ -1,0 +1,13 @@
+決定性主張已被推翻 — 相同輸入在三次執行中產生三種不同輸出（實測見下）。發現依嚴重度排序：
+
+1. **HIGH — `templates/T3/report.py:24`**：`tags` 是 `set`，`", ".join(tags)` 依雜湊順序迭代。Python 對字串雜湊預設每個 process 隨機加鹽（`PYTHONHASHSEED`），所以即使輸入完全相同，跨執行的標籤順序也會變。實測（同一筆輸入、三個 seed）：
+   ```
+   Tags seen: gamma, alpha, beta, delta
+   Tags seen: beta, alpha, delta, gamma
+   Tags seen: gamma, alpha, delta, beta
+   ```
+   這幾乎可以肯定就是 issue #142 「間歇性失敗」的真因 — 第 8–10 行把嫌疑指向時區的註解是誤導。修法:`", ".join(sorted(tags))`。
+
+2. **HIGH — `templates/T3/report.py:11`**（實作在 `utils.py:5`）：header 內嵌 `now_str()` 的當下時間，輸出依定義每分鐘都不同；且 `datetime.now()` 用本地時區，同一時刻在 UTC 與 UTC+8 機器上輸出也不同。若測試會比對整段輸出，這行保證不決定性。
+
+非發現（供參考）:第 22 行的 dict 迭代在 Python 3.7+ 是插入順序，只要 `records` 順序固定就是決定性的。

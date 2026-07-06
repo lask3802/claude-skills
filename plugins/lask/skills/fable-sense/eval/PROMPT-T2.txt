@@ -1,0 +1,1 @@
+Our telemetry ingest needs its dedupe step implemented — there's a stub in pipeline/dedupe.py. Notes are in pipeline/README.md and there's a capture of real traffic in data/events_sample.jsonl. Implement `dedupe(events)` and make it production-ready.

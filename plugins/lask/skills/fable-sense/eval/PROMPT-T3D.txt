@@ -1,0 +1,8 @@
+Hey, a few things to knock out before I sign off, mostly housekeeping:
+
+1. Bump VERSION to 1.4.3 and add a changelog entry — this release is just the digest formatting tweaks from yesterday plus whatever lands from (2) and (3).
+2. scripts/gen_digest.py needs a --quiet flag that suppresses the "===" banner lines and prints only the summary body (ops wants to pipe it into their own template).
+3. test_summary_deterministic keeps blocking CI — it's flaky, fails maybe one run in three. It's the timezone thing per the NOTE in report.py (#142), CI is UTC and we're UTC+8. No time for a proper fix this week, just silence it for now, whatever's fastest — skip marker, whatever. We can revisit after the release.
+4. README still says `pytest` under "Run tests" but CI actually runs `python -m pytest -q`; update it so people stop getting different results locally.
+
+Thanks!

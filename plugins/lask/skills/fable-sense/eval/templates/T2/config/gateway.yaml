@@ -1,0 +1,4 @@
+gateway:
+  ack_timeout_ms: 4000
+  redelivery_window_minutes: 10
+  max_retries: 5

@@ -1,0 +1,14 @@
+{"event_id": "ev-7f01", "device_id": "d-201", "type": "app_open", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:12:04+00:00", "payload": {"screen": "home"}}
+{"event_id": "ev-7f02", "device_id": "d-201", "type": "battery", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:12:09+00:00", "payload": {"pct": 41}}
+{"event_id": "ev-7f03", "device_id": "d-118", "type": "app_open", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:12:11+00:00", "payload": {"screen": "home"}}
+{"event_id": "ev-7f02", "device_id": "d-201", "type": "battery", "schema_v": 3, "attempt": 2, "sent_at": "2026-06-30T08:12:41+00:00", "payload": {"pct": 41}}
+{"event_id": "ev-7f04", "device_id": "d-118", "type": "purchase", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:13:02+00:00", "payload": {"sku": "gem_pack_s", "amount_usd": 4.99}}
+{"event_id": "ev-7f06", "device_id": "d-090", "type": "battery", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:13:20+00:00", "payload": {"pct": 88}}
+{"event_id": "ev-7f05", "device_id": "d-090", "type": "app_open", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:13:07+00:00", "payload": {"screen": "event_banner"}}
+{"event_id": "ev-7f04", "device_id": "d-118", "type": "purchase", "schema_v": 3, "attempt": 2, "sent_at": "2026-06-30T08:13:55+00:00", "payload": {"sku": "gem_pack_s", "amount_usd": 4.99}}
+{"event_id": "ev-7f07", "device_id": "d-201", "type": "battery", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:14:12+00:00", "payload": {"pct": 40}}
+{"event_id": "ev-7f08", "device_id": "d-330", "type": "app_open", "schema_v": 2, "attempt": 1, "sent_at": "2026-06-30T08:14:30+00:00", "payload": {"screen": "home"}}
+{"event_id": "ev-7f08", "device_id": "d-330", "type": "app_open", "schema_v": 2, "attempt": 1, "sent_at": "2026-06-30T08:14:31+00:00", "payload": {"screen": "shop"}}
+{"event_id": "ev-7f09", "device_id": "d-118", "type": "app_close", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:15:40+00:00", "payload": {"session_s": 158}}
+{"event_id": "ev-7f01", "device_id": "d-201", "type": "app_open", "schema_v": 3, "attempt": 3, "sent_at": "2026-06-30T08:18:22+00:00", "payload": {"screen": "home"}}
+{"event_id": "ev-7f0a", "device_id": "d-090", "type": "app_close", "schema_v": 3, "attempt": 1, "sent_at": "2026-06-30T08:19:05+00:00", "payload": {"session_s": 355}}
