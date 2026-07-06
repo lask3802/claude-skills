@@ -50,6 +50,17 @@ Limitations, honestly: n=2 per cell; single-session mini-repos; grader =
 task author (mitigated by pre-registered binary rubrics + all artifacts kept
 in `eval/`). Long-horizon / giant-repo gaps were NOT tested.
 
+## 5-arm benchmark (2026-07-06, eval/bench/)
+
+fable / opus / opus+sense / codex / codex+sense on three discriminative tasks
+(30 pre-registered binary criteria). Pooled means: fable 9.67, opus 8.83,
+opus+sense 8.83, codex 7.50, codex+sense 8.17. The skill's lift concentrates
+where the executor is weakest (codex +0.67 pooled, non-negative on every
+task); Opus needs the protocol's *conditions*, not its reasoning. Three
+systematic misses found by the benchmark became the v1.4.2 protocol clauses
+(runnable analysis artifacts; permuted verification for order/state bugs;
+adjacent-hazard disclosure), each re-verified with a targeted probe.
+
 ## Re-validation (when models change)
 
 1. Copy a template from `eval/templates/` to a scratch dir per run.

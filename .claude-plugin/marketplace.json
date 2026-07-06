@@ -13,7 +13,7 @@
       "name": "lask",
       "source": "./plugins/lask",
       "description": "Director-mode delegation for the main session (seven-agent roster, playbooks, calibrated verification, Codex second opinions), hook-enforced model tiering for spawned agents, fable-sense hard-task conditions discipline (empirically validated), plus handoff.",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "author": {
         "name": "lask3802"
       },

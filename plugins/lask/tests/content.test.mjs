@@ -126,6 +126,12 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
   const block = read("skills/fable-sense/codex-agents-block.md");
   assert.match(block, /BEGIN FABLE-SENSE/, "codex block must be marker-delimited for clean install/uninstall");
   assert.match(block, /skip this entirely/i, "codex block must carry the skip-gate");
+  for (const src of [body, block]) {
+    assert.match(src, /permuted/i, "1.4.2 benchmark clause: permuted verification for order/state bugs");
+    assert.match(src, /runnable computation|runnable provenance/i, "1.4.2 benchmark clause: analysis ships its computation");
+    assert.match(src, /adjacent hazard/i, "1.4.2 benchmark clause: name adjacent hazards");
+  }
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "eval", "bench", "bench-grades.md")), "5-arm benchmark evidence must ship");
   const readme = read("skills/fable-sense/README.md");
   assert.match(readme, /~\/\.codex\/skills\/fable-sense/, "README must document the Codex skills-dir install");
   assert.match(readme, /auto-trigger/i, "README must record why the AGENTS.md block stays (measured trigger unreliability)");
@@ -139,10 +145,10 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.4.1 and describes director mode and fable-sense", () => {
+test("plugin.json is 1.4.2 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.4.1");
+  assert.equal(pkg.version, "1.4.2");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });

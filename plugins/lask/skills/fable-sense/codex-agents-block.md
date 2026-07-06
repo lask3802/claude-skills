@@ -25,7 +25,14 @@ verification, not a bigger model.
    with the deviation and the reason.
 4. **Execution evidence only.** "Done" requires observed behavior: tests run
    (repeatedly for flaky things), repro before / clean after. Plausible prose
-   is not verification.
+   is not verification. Three additions, each traced to a measured miss:
+   (a) analysis/decision deliverables must include the runnable computation
+   (script or exact commands), not just the numbers; (b) a fix for an
+   order/state/timing-dependent bug counts as verified only under permuted
+   conditions (reversed order, other seeds) — the reported scenario going
+   green is not enough; (c) before finishing, name adjacent hazards you
+   observed but did not fix (e.g., a retry wrapper around a non-idempotent
+   call), with options.
 5. **High stakes → cross-model tail guard.** If the result is hard to
    reverse, hides failure, or gets built upon, have Claude try to refute it:
    `claude -p "Adversarially review <artifact>: try to refute its key claims; report what is missing, not only what is wrong; findings as file:line."`

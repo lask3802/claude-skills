@@ -54,6 +54,22 @@ EVIDENCE FIRST: <what to read/run before concluding; who consumes what
 Accept "done" only with observed behavior: tests run N times, repro before /
 clean after, ranked output recomputed from data. Plausible prose ≠ evidence.
 
+Three misses that survive even good runs (each measured in the 2026-07
+benchmark; see eval/bench):
+- **Analysis must ship its computation.** For data/decision deliverables,
+  commit the script or exact commands next to the conclusions — numbers
+  without runnable provenance failed 9/9 benchmark runs, including the
+  reference model.
+- **Order/state bugs need permuted verification.** A fix for an
+  order/state/timing-dependent failure is verified only under permuted
+  conditions (reversed order, other seeds, alternative sequences). A green
+  run of the originally-reported scenario alone repeatedly passed fixes that
+  still carried the bug class.
+- **Name adjacent hazards before finishing.** If you observed a nearby
+  landmine you didn't fix (e.g., a retry wrapper around a non-idempotent
+  call), say so with options — staying silent ships it. Only 2/9 benchmark
+  runs did this unprompted.
+
 ### 4. High stakes → cross-model tail guard
 
 Ceiling performance ≠ zero tail risk. When failure is hard to reverse, hides,
