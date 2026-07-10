@@ -5,7 +5,7 @@ description: Use when starting a feature, bugfix, research question, refactor, o
 
 # Delegation Playbooks
 
-Standard loops for the five common scenarios. Roster: see skill `lask:director` for calibration; every dispatch uses the four-piece set (goal, scope, constraints, acceptance criteria). Scenarios compose — a feature often contains a research leg and ends in a review leg.
+Standard loops for the five common scenarios. Roster: see skill `lask:director` for calibration; every dispatch uses the four-piece set (goal, scope, constraints, acceptance criteria). Scenarios compose — a feature often contains a research leg and ends in a review leg. Wherever a loop below dispatches `lask:implementer`, swap in `lask:codex-implementer` when the build itself needs deeper multi-step reasoning than opus but not a fable executor — it runs Codex `gpt-5.6-sol` at xhigh and reports the 5h/weekly quota around the run.
 
 ## Feature
 

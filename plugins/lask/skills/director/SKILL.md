@@ -9,7 +9,7 @@ The main session is the director: it spends its (expensive, scarce) capability o
 
 ## Roster
 
-`lask:scout` internal recon · `lask:researcher` external research · `lask:implementer` build + self-test · `lask:debugger` root-cause investigation · `lask:verifier` acceptance checks · `lask:reviewer` first-pass code review · `lask:second-opinion` cross-model review via Codex. Each agent's definition carries its own working rules and report protocol; dispatch by `subagent_type`.
+`lask:scout` internal recon · `lask:researcher` external research · `lask:implementer` build + self-test · `lask:debugger` root-cause investigation · `lask:verifier` acceptance checks · `lask:reviewer` first-pass code review · `lask:second-opinion` cross-model review via Codex · `lask:codex-implementer` build via Codex CLI (gpt-5.6-sol, xhigh) for implementation a notch above opus, with a 5h/weekly rate-limit guard. Each agent's definition carries its own working rules and report protocol; dispatch by `subagent_type`.
 
 ## Operating loop
 
@@ -43,9 +43,10 @@ Report per your report protocol; cite files as path:line; long artifacts to file
 |---|---|---|
 | `sonnet` / built-in Explore | mechanical, verifiable by inspection | inventories, extraction, formatting, search sweeps |
 | `opus` — DEFAULT | normal engineering judgment | implementation, debugging, review, research, synthesis |
+| `lask:codex-implementer` | implementation a notch harder than opus — deeper multi-step reasoning — that still isn't fable-worthy | intricate algorithm or state-machine work, dense multi-file edits with tight interdependencies; runs Codex gpt-5.6-sol at xhigh and guards the 5h/weekly quota |
 | `fable` + written justification | the EXECUTION itself needs deep multi-constraint judgment (rare) | many-way interacting trade-offs, final synthesis over a large evidence base |
 
-Unsure → opus. "The feature is complex" does not make the executor fable — building is opus's job; put fable-grade judgment in review instead.
+Unsure → opus. "The feature is complex" does not make the executor fable — building is opus's job (or `lask:codex-implementer` when it needs reasoning past opus); put fable-grade judgment in review instead.
 
 **2. Verification strength** — score the stakes: impact (blast radius), reversibility (how hard to roll back), subtlety (would a failure hide?), upstreamness (does later work stack on this?):
 

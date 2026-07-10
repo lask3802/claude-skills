@@ -35,11 +35,11 @@ test("e2e: director policy block is injected", { skip: !ENABLED && "set LASK_E2E
   assert.match(out, /YES-DIRECTOR/);
 });
 
-test("e2e: all seven lask agents are dispatchable", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+test("e2e: all eight lask agents are dispatchable", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
   const out = claude(
     'List every available agent type whose name starts with "lask:", comma-separated, nothing else.',
   );
-  for (const a of ["scout", "researcher", "implementer", "debugger", "verifier", "reviewer", "second-opinion"])
+  for (const a of ["scout", "researcher", "implementer", "debugger", "verifier", "reviewer", "second-opinion", "codex-implementer"])
     assert.match(out, new RegExp(`lask:${a}`), `agent lask:${a} must be listed`);
 });
 

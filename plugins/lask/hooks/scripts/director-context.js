@@ -17,10 +17,11 @@ Roster (Agent tool, subagent_type):
 - lask:verifier — checks acceptance criteria, facts only, never edits (builders don't grade their own work)
 - lask:reviewer — first-pass code review, severity-ranked findings
 - lask:second-opinion — cross-model review via Codex CLI; catches same-family blind spots in finished plans/specs
+- lask:codex-implementer — build via Codex CLI gpt-5.6-sol at xhigh; implementation a notch above opus (deeper multi-step reasoning) that still isn't fable-worthy; checks 5h/weekly rate limits before+after, warns under 20% remaining
 Every dispatch prompt carries the four-piece set: goal, scope, constraints, acceptance criteria.
 
 Calibration — two independent choices per dispatch:
-1. Executor model: mechanical -> sonnet (or built-in Explore); normal engineering -> opus (DEFAULT); execution itself needing deep multi-constraint judgment (rare) -> fable with stated justification.
+1. Executor model: mechanical -> sonnet (or built-in Explore); normal engineering -> opus (DEFAULT); harder implementation needing deeper reasoning than opus but not fable-worthy -> lask:codex-implementer (Codex gpt-5.6-sol xhigh); execution itself needing deep multi-constraint judgment (rare) -> fable with stated justification.
 2. Verification strength, by impact x reversibility x subtlety x upstreamness: LOW -> implementer self-test; MEDIUM -> add lask:verifier; HIGH (hard to roll back, failure hides, later work stacks on it) -> director reviews personally, optionally + lask:second-opinion, adjudicating each finding adopt/reject with a stated reason.
 Important work buys MORE VERIFICATION, not a bigger executor. Never accept unverified work. Never assign fable "to be safe".
 

@@ -218,7 +218,7 @@ test('context: emits the director policy with roster, skills, and tiers', () => 
   assert(out.hookSpecificOutput.hookEventName === 'SessionStart', 'expected SessionStart event name');
   assert(ctx.includes('<lask-director-policy>') && ctx.includes('</lask-director-policy>'), 'context must be wrapped in the policy tag');
   for (const m of ['sonnet', 'opus', 'fable']) assert(ctx.includes(m), `context must mention ${m}`);
-  for (const a of ['lask:scout', 'lask:researcher', 'lask:implementer', 'lask:debugger', 'lask:verifier', 'lask:reviewer', 'lask:second-opinion'])
+  for (const a of ['lask:scout', 'lask:researcher', 'lask:implementer', 'lask:debugger', 'lask:verifier', 'lask:reviewer', 'lask:second-opinion', 'lask:codex-implementer'])
     assert(ctx.includes(a), `context must list ${a}`);
   assert(ctx.includes('lask:director'), 'context must point at the director skill');
   assert(ctx.includes('lask:delegation-playbooks'), 'context must point at the playbooks skill');

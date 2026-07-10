@@ -30,9 +30,10 @@ const AGENTS = [
   "verifier",
   "reviewer",
   "second-opinion",
+  "codex-implementer",
 ];
 
-test("agents directory contains exactly the seven roster agents", () => {
+test("agents directory contains exactly the eight roster agents", () => {
   const files = fs.readdirSync(path.join(PLUGIN_ROOT, "agents")).sort();
   assert.deepEqual(files, AGENTS.map((a) => `${a}.md`).sort());
 });
@@ -59,6 +60,7 @@ test("tool restrictions match each agent's mandate", () => {
   assert.equal(tools["verifier"], "Read, Glob, Grep, Bash");
   assert.equal(tools["reviewer"], "Read, Glob, Grep, Bash");
   assert.equal(tools["second-opinion"], "Bash, Read");
+  assert.equal(tools["codex-implementer"], "Bash, Read, Glob, Grep");
   assert.equal(tools["implementer"], undefined, "implementer needs the full toolset");
   assert.equal(tools["debugger"], undefined, "debugger needs the full toolset");
 });
@@ -80,6 +82,23 @@ test("second-opinion embeds the verified codex recipe and the no-substitute rule
   assert.match(src, /never as a shell argument/i);
   assert.match(src, /never substitute/i);
   assert.match(src, /no adoption decisions/i);
+});
+
+test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () => {
+  const src = read("agents/codex-implementer.md");
+  assert.match(src, /codex exec -m gpt-5\.6-sol/, "must pin the model");
+  assert.match(src, /model_reasoning_effort="xhigh"/, "must default to xhigh effort");
+  assert.match(src, /--sandbox workspace-write/, "write mode is the whole point");
+  assert.match(src, /--output-last-message/);
+  assert.match(src, /- < "/, "prompt must travel via stdin redirection, not a shell argument");
+  assert.match(src, /never as a shell argument/i);
+  assert.match(src, /run_in_background/i, "must run long xhigh sessions in the background");
+  assert.match(src, /resets_at/, "rate-limit reader must key off the real resets_at field");
+  assert.match(src, /remaining < 20/, "must state the 20%-remaining warn threshold");
+  assert.match(src, /BEFORE and AFTER/i, "must check limits on both sides of the run");
+  assert.match(src, /never (?:silently )?substitute/i, "the 400 sol error must not trigger a silent model swap");
+  assert.match(src, /limits unknown/i, "must degrade gracefully when no snapshot exists");
+  assert.match(src, /require\('node:fs'\)/, "rate-limit reader must be an embedded Node script, self-contained");
 });
 
 test("director skill exists, names the whole roster, and keeps the escape hatch documented", () => {
@@ -145,10 +164,10 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.4.2 and describes director mode and fable-sense", () => {
+test("plugin.json is 1.5.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.4.2");
+  assert.equal(pkg.version, "1.5.0");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });

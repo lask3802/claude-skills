@@ -43,6 +43,7 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | `lask:verifier` | opus | 驗收官：逐條驗 acceptance criteria，只回報事實、絕不動手修 |
 | `lask:reviewer` | opus | 初審：正確性→風險→可維護性，severity 分級 findings |
 | `lask:second-opinion` | sonnet | 跨模型第三方審查：唯讀沙箱跑 Codex CLI 並忠實轉述，採納與否由 director 逐條裁決 |
+| `lask:codex-implementer` | sonnet | 透過 Codex CLI（gpt-5.6-sol，xhigh）建置比 opus 高一階的實作（更深的多步推理，但還不到 fable）；薄監督層，重推理在 Codex 端。跑前後各查一次 5h／週配額，任一視窗剩餘 <20% 即於報告頂端 ⚠️ 警告；sol 若回 400「model not supported」則誠實回報並停手，不擅自換模型 |
 
 所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes（僅 implementer/debugger）／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
 
@@ -106,7 +107,7 @@ plugins/
         director-enforce.js # 主 session 直接編輯 → 提醒→拒絕（hands-on 逃生門）
         tier.test.js        # model-tiering hook 行為測試
         enforce.test.js     # director-enforce hook 行為測試
-    agents/                 # 七人編制（scout/researcher/implementer/debugger/verifier/reviewer/second-opinion）
+    agents/                 # 八人編制（scout/researcher/implementer/debugger/verifier/reviewer/second-opinion/codex-implementer）
     skills/
       director/             # 核心 rubric
       delegation-playbooks/ # 五場景打法
