@@ -1,6 +1,6 @@
 {
   "name": "lask",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "lask's personal Claude Code plugin: director-mode delegation (eight-agent roster incl. Codex implementer, playbooks, calibrated verification, Codex second opinions) with hook-enforced model tiering, fable-sense hard-task conditions discipline, plus handoff.",
   "author": {
     "name": "lask3802"

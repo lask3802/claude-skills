@@ -1,6 +1,7 @@
 ---
 name: codex-run
 description: Use ONLY when the user or director explicitly dispatches a task to the Codex CLI and names it — 「用 codex 跑」「dispatch to codex」「/lask:codex-run」— optionally specifying a model (sol/terra/luna) and reasoning effort. Runs exactly ONE codex exec session from the verified model×effort table, collects the result, and relays it faithfully. Mechanical by design — a sonnet or haiku executor can follow it verbatim. Not for deciding WHETHER to use Codex — that call belongs to the user/director.
+argument-hint: "[--model sol|terra|luna] [--effort none|low|medium|high|xhigh] [--sandbox write|read] <要派給 Codex 的任務>"
 ---
 
 # codex-run — 手動派發一個任務給 Codex CLI
@@ -8,6 +9,21 @@ description: Use ONLY when the user or director explicitly dispatches a task to 
 One dispatched task → one `codex exec` session → result relayed back, verbatim.
 Zero judgment required: every choice is a row in a table. If the dispatch didn't
 specify something, use the marked default — do not invent.
+
+## Arguments
+
+Invocation: `/lask:codex-run [--model …] [--effort …] [--sandbox …] <task>`
+Parse the arguments FIRST, before anything else:
+
+| Flag | Accepted values | Maps to | Default when omitted |
+|---|---|---|---|
+| `--model` | `sol` \| `terra` \| `luna`（或完整名 `gpt-5.6-sol` 等） | `-m gpt-5.6-<alias>` | `gpt-5.6-sol` |
+| `--effort` | `none` \| `low` \| `medium` \| `high` \| `xhigh` | `-c model_reasoning_effort="<v>"` | `xhigh`（實作）/ `high`（審查分析）/ `low`（瑣碎機械改動） |
+| `--sandbox` | `write` \| `read` | `--sandbox workspace-write` / `read-only` | `write`（需改檔）/ `read`（純審查） |
+
+- Everything after the flags is the TASK TEXT, passed to Codex verbatim.
+- `--effort minimal` → reject immediately, point at the table below（三模型皆 400）。
+- Unknown flag value → ask back once with the accepted values; never guess.
 
 ## Verified model × effort table
 

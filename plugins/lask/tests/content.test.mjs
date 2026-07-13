@@ -119,6 +119,10 @@ test("codex-run skill ships the verified model×effort table and the mechanical 
   const { fm, body } = parseFrontmatter(read("skills/codex-run/SKILL.md"));
   assert.equal(fm.name, "codex-run");
   assert.match(fm.description, /explicitly/i, "must be manual-dispatch only, not auto-triggered ambition");
+  assert.ok(fm["argument-hint"], "must ship an argument-hint for the command picker");
+  assert.match(fm["argument-hint"], /--model/, "argument-hint must surface --model");
+  assert.match(fm["argument-hint"], /--effort/, "argument-hint must surface --effort");
+  assert.match(body, /## Arguments/, "must document the flag parsing table");
   for (const m of ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]) {
     assert.match(body, new RegExp(m.replace(/\./g, "\\.")), `table must list ${m}`);
   }
@@ -199,7 +203,7 @@ test("director-context.js source carries the policy tag and full roster", () => 
 test("plugin.json is 1.5.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.6.1");
+  assert.equal(pkg.version, "1.6.2");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });
