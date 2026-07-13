@@ -1,6 +1,6 @@
 ---
 name: codex-run
-description: Use ONLY when the user or director explicitly dispatches a task to the Codex CLI and names it — 「用 codex 跑」「dispatch to codex」「/lask:codex-run」— optionally specifying a model (sol/terra/luna) and reasoning effort. Runs exactly ONE codex exec session from the verified model×effort table, collects the result, and relays it faithfully. Mechanical by design: a sonnet or haiku executor can follow it verbatim. Not for deciding WHETHER to use Codex — that call belongs to the user/director.
+description: Use ONLY when the user or director explicitly dispatches a task to the Codex CLI and names it — 「用 codex 跑」「dispatch to codex」「/lask:codex-run」— optionally specifying a model (sol/terra/luna) and reasoning effort. Runs exactly ONE codex exec session from the verified model×effort table, collects the result, and relays it faithfully. Mechanical by design — a sonnet or haiku executor can follow it verbatim. Not for deciding WHETHER to use Codex — that call belongs to the user/director.
 ---
 
 # codex-run — 手動派發一個任務給 Codex CLI

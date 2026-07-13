@@ -101,6 +101,20 @@ test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () 
   assert.match(src, /require\('node:fs'\)/, "rate-limit reader must be an embedded Node script, self-contained");
 });
 
+test("all frontmatter stays strict-YAML-safe (no unquoted colon-space in values)", () => {
+  const files = [
+    ...fs.readdirSync(path.join(PLUGIN_ROOT, "agents")).map((f) => `agents/${f}`),
+    ...fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).map((d) => `skills/${d}/SKILL.md`),
+  ].filter((f) => fs.existsSync(path.join(PLUGIN_ROOT, f)));
+  for (const f of files) {
+    const { fm } = parseFrontmatter(read(f));
+    for (const [k, v] of Object.entries(fm)) {
+      if (/^["']/.test(v)) continue; // quoted scalars may contain anything
+      assert.ok(!/:\s/.test(v), `${f}: frontmatter '${k}' contains unquoted ': ' — breaks strict YAML parsers (GitHub). Quote the value or rephrase.`);
+    }
+  }
+});
+
 test("codex-run skill ships the verified model×effort table and the mechanical protocol", () => {
   const { fm, body } = parseFrontmatter(read("skills/codex-run/SKILL.md"));
   assert.equal(fm.name, "codex-run");
@@ -185,7 +199,7 @@ test("director-context.js source carries the policy tag and full roster", () => 
 test("plugin.json is 1.5.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.6.0");
+  assert.equal(pkg.version, "1.6.1");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });
