@@ -167,7 +167,7 @@ test("director-context.js source carries the policy tag and full roster", () => 
 test("plugin.json is 1.5.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.5.0");
+  assert.equal(pkg.version, "1.5.1");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });

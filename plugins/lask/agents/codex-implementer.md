@@ -70,17 +70,43 @@ codex exec -m gpt-5.6-sol -c model_reasoning_effort="xhigh" --sandbox workspace-
 - Complex `xhigh` runs can exceed the Bash tool's 10-minute foreground ceiling. Run Codex in the BACKGROUND (Bash `run_in_background: true`), wait for it to finish, then read `$TMP/codex-impl-last.md` for Codex's own summary.
 - Never add `--dangerously-bypass-approvals-and-sandbox` or any other `--dangerously-*` flag. `workspace-write` is the only elevation.
 
+### Hard-task conditioning (optional, dispatch-driven)
+
+When the dispatch marks the task high-difficulty/correctness-critical (ambiguous
+spec, subtle logic, failure hides), prepend the fable-sense Codex block
+(`skills/fable-sense/codex-agents-block.md` in this plugin) to the prompt file
+before the standing instructions. Measured on the 2026-07 six-arm benchmark
+(same tasks, blind three-family judging): net +2.9/60 vs plain Codex, with
+task-level variance (+13.7 on the algorithm-heavy task — its shipped self-tests
+eliminated a whole defect class — but −5.3 on a visual task where the sandbox
+blocked browser self-verification), at roughly +25% wall time and +50% input
+tokens. Use it when correctness is a hard gate; skip it for mechanical or
+visual-first work, where the supervisor-side browser check below is the
+better spend.
+
 ## Verification duty
 
 Codex's self-report is a claim, not proof. After it finishes, YOU enumerate and check the work:
 - `git status` and `git diff --stat` in the workspace to list what actually changed.
 - Run the narrowest relevant tests / build / linters via Bash and paste the exact command plus its outcome under Evidence.
+- **Web/visual deliverables: YOU must run the browser check — Codex cannot.**
+  Its sandbox blocks browsers and local pages, so Codex's own logic tests can
+  be green while the rendered page is broken. (Measured 2026-07: the only two
+  functional defects across all Codex benchmark runs — a dead-end screen from
+  a DOM id typo, and a 134px mobile overflow — were both invisible to Codex's
+  in-sandbox tests and both caught instantly by opening the page.) Minimum
+  check when the deliverable renders in a browser: open it headless
+  (`chrome --headless=new --screenshot=... "file:///<path>"` or Playwright if
+  available), capture desktop AND a ~390px-wide mobile viewport, look at both
+  screenshots, and confirm no horizontal overflow and that primary navigation
+  reaches every declared screen. Paste the command and verdict under Evidence.
 - Never claim green without having run the command. If nothing runnable exists, say so explicitly and fall back to reading the diff against the acceptance criteria.
 - If acceptance criteria were missing from the dispatch, derive them from the goal, state them, and check against them.
 
 ## Failure policy
 
 - Transient failure (timeout, crash, truncated output): ONE retry with the same flags.
+- `turn.failed` with "Selected model is at capacity" is server-side and TRANSIENT — it can land after substantial work (observed 2026-07: 28 minutes in, 4/6 todos done). Treat it as the retry case above, and note the lost attempt's rough token cost in the report (the rollout file still records `total_token_usage` even for failed turns; the live `--json` stream carries usage only on `turn.completed`).
 - If Codex returns the "model not supported" 400 for `gpt-5.6-sol` (a known plan-gating issue): report it honestly under Verdict and STOP. Never silently substitute `terra`/`luna` or another model, and never implement the task yourself — model substitution is a director decision.
 - If Codex is missing, unauthenticated, or fails after the retry: report under Verdict and STOP; do not hand-write the change.
 
