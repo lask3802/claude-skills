@@ -101,6 +101,24 @@ test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () 
   assert.match(src, /require\('node:fs'\)/, "rate-limit reader must be an embedded Node script, self-contained");
 });
 
+test("codex-run skill ships the verified model×effort table and the mechanical protocol", () => {
+  const { fm, body } = parseFrontmatter(read("skills/codex-run/SKILL.md"));
+  assert.equal(fm.name, "codex-run");
+  assert.match(fm.description, /explicitly/i, "must be manual-dispatch only, not auto-triggered ambition");
+  for (const m of ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]) {
+    assert.match(body, new RegExp(m.replace(/\./g, "\\.")), `table must list ${m}`);
+  }
+  assert.match(body, /minimal.*(400|unsupported)/is, "must document that minimal is rejected by all three models");
+  assert.match(body, /- < "/, "prompt must travel via stdin redirection");
+  assert.match(body, /run_in_background/i, "must run high/xhigh sessions in the background");
+  assert.match(body, /--output-last-message/);
+  assert.match(body, /Never add `--dangerously-bypass/i, "the dangerous bypass flag must appear only as a prohibition");
+  assert.match(body, /at capacity/i, "capacity error must be documented as transient");
+  assert.match(body, /NEVER silently substitute/i, "model substitution stays a user/director decision");
+  assert.match(body, /127\.0\.0\.1:8080/, "known MCP noise must be documented as ignorable");
+  assert.match(body, /verbatim/i, "relay must be faithful");
+});
+
 test("director skill exists, names the whole roster, and keeps the escape hatch documented", () => {
   const { fm, body } = parseFrontmatter(read("skills/director/SKILL.md"));
   assert.equal(fm.name, "director");
@@ -167,7 +185,7 @@ test("director-context.js source carries the policy tag and full roster", () => 
 test("plugin.json is 1.5.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.5.1");
+  assert.equal(pkg.version, "1.6.0");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });

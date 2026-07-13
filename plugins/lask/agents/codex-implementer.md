@@ -56,6 +56,12 @@ Handling the result:
 - If EITHER window has `remaining < 20` at EITHER check (`low:true` / `warn:true`), put an unmissable ⚠️ line at the very TOP of your report so the director relays it to the user.
 - A before-check breach warns but still proceeds by default. Abort before running Codex instead only when the dispatch says to be quota-strict.
 
+> Mechanical single-shot dispatches (user names the model/effort, no
+> supervision judgment needed) have a lighter path: the `codex-run` skill
+> (`skills/codex-run/SKILL.md`) carries the verified model×effort table and a
+> sonnet/haiku-executable procedure. This agent remains the full-supervision
+> path: quota guard, verification duty, and report protocol.
+
 ## Invocation — exactly ONE Codex write session per dispatch
 
 Compose a prompt file containing the dispatched goal / scope / constraints / acceptance criteria, plus standing instructions to Codex: implement exactly to scope, match the surrounding code style, self-test, and summarize every file changed. Pass it via stdin (never as a shell argument — quotes/backticks/`$()` in an argument can corrupt the command) and always redirect stdin so Codex cannot hang waiting for input.
