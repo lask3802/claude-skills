@@ -23,6 +23,21 @@ The Claude side works as soon as the plugin is installed. The Codex pieces and
 the CLAUDE.md trigger are per-machine one-time copies — the plugin cannot
 write outside its own directory.
 
+## Scope: which executors need this
+
+The skill targets Opus and Codex. Fable is the reference model the protocol
+imitates — the 5-arm benchmark's bare Fable arm topped every assisted arm
+(pooled 9.67 vs 8.83 for opus+sense) — so the CLAUDE.md trigger block and the
+skill description exempt sessions already running on Fable. From a Fable
+session the skill is only the dispatch template for handing work down to
+another executor.
+
+2026-07-16 — the Codex→Claude tail-guard recipe now requires streaming output
+(`--output-format stream-json --verbose`). Measured in use, a bare `claude -p`
+emits nothing until completion, and Codex sessions repeatedly treated the
+silent call as hung and over-waited. The final `"type":"result"` JSONL line
+carries the review.
+
 **Why Codex needs BOTH the skill and the AGENTS.md block** (measured
 2026-07-06): `codex exec` injects the skill roster into every session and
 named invocation reliably loads the skill — but description-based

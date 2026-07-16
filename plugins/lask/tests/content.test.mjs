@@ -169,6 +169,8 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
   assert.ok(fm.description && fm.description.length >= 60, "description too short to trigger reliably");
   assert.match(fm.description, /^Use when /, "description must state triggering conditions, not workflow");
   assert.match(fm.description, /Not for mechanical tasks/, "description must carry the skip-gate");
+  assert.match(fm.description, /already running on Fable/, "description must exempt Fable sessions (the sense is native)");
+  assert.match(body, /already running on Fable/, "body must carry the Fable exemption");
   for (const field of ["TASK:", "REAL GOAL:", "DELIVERABLE:", "STAKES:", "CONSTRAINTS:", "EVIDENCE FIRST:"])
     assert.match(body, new RegExp(field), `brief template must include ${field}`);
   assert.match(body, /codex exec --sandbox read-only/, "Claude->Codex tail guard must embed the verified recipe");
@@ -179,6 +181,7 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "eval", "RUBRICS.md")), "pre-registered rubrics must ship for re-validation");
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "eval", "results", "grades.md")), "graded evidence must ship");
   const block = read("skills/fable-sense/codex-agents-block.md");
+  for (const src of [body, block]) assert.match(src, /--output-format stream-json --verbose/, "Codex->Claude tail guard must stream — a silent claude -p reads as hung");
   assert.match(block, /BEGIN FABLE-SENSE/, "codex block must be marker-delimited for clean install/uninstall");
   assert.match(block, /skip this entirely/i, "codex block must carry the skip-gate");
   for (const src of [body, block]) {
@@ -200,10 +203,10 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.5.0 and describes director mode and fable-sense", () => {
+test("plugin.json is 1.6.3 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.6.2");
+  assert.equal(pkg.version, "1.6.3");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });

@@ -1,4 +1,4 @@
-<!-- BEGIN FABLE-SENSE (managed by ~/.claude/skills/fable-sense — edit there, not here) -->
+<!-- BEGIN FABLE-SENSE (managed by the lask plugin — plugins/lask/skills/fable-sense; edit there, not here) -->
 # fable-sense: conditions discipline for hard tasks
 
 Applies ONLY when a task is high-difficulty, ambiguous, open-ended, or
@@ -34,9 +34,13 @@ verification, not a bigger model.
    observed but did not fix (e.g., a retry wrapper around a non-idempotent
    call), with options.
 5. **High stakes → cross-model tail guard.** If the result is hard to
-   reverse, hides failure, or gets built upon, have Claude try to refute it:
-   `claude -p "Adversarially review <artifact>: try to refute its key claims; report what is missing, not only what is wrong; findings as file:line."`
-   Run it with a generous timeout (≥10 minutes; a 120 s default kills it
-   before it answers). If it cannot complete, disclose that in your
-   deliverable instead of skipping silently.
+   reverse, hides failure, or gets built upon, have Claude try to refute it.
+   ALWAYS stream the output — a bare `claude -p` prints nothing until it
+   finishes and reads as a hang:
+   `claude -p "Adversarially review <artifact>: try to refute its key claims; report what is missing, not only what is wrong; findings as file:line." --output-format stream-json --verbose`
+   Events stream as JSONL and the final `"type":"result"` line carries the
+   full review. Still allow a generous timeout (≥10 minutes; a 120 s default
+   kills it before it answers) — streaming fixes the silence, not the
+   duration. If it cannot complete or the `claude` CLI is unavailable, skip
+   this pass and disclose that in your deliverable instead of blocking on it.
 <!-- END FABLE-SENSE -->
