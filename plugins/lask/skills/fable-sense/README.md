@@ -32,11 +32,16 @@ skill description exempt sessions already running on Fable. From a Fable
 session the skill is only the dispatch template for handing work down to
 another executor.
 
-2026-07-16 — the Codex→Claude tail-guard recipe now requires streaming output
-(`--output-format stream-json --verbose`). Measured in use, a bare `claude -p`
-emits nothing until completion, and Codex sessions repeatedly treated the
-silent call as hung and over-waited. The final `"type":"result"` JSONL line
-carries the review.
+2026-07-23 — the Codex→Claude `claude -p` tail guard is retired. Measured in
+production (daily-automation logs), the call failed or timed out on nearly
+every run inside Codex sessions — ConnectionRefused, 650–724 s silent
+timeouts, spend-limit rejections — even after the 2026-07-16 streaming fix
+(`--output-format stream-json --verbose` fixed the silence, not the
+failures). Codex sessions now run the tail guard as a fresh
+`codex exec --sandbox read-only` session (same recipe as the Claude→Codex
+direction): cross-model diversity is traded away for a guard that actually
+completes, and fresh context + adversarial framing is where the protocol's
+measured leverage sits.
 
 **Why Codex needs BOTH the skill and the AGENTS.md block** (measured
 2026-07-06): `codex exec` injects the skill roster into every session and
@@ -59,7 +64,7 @@ and disclosed deviations from bad literal instructions.
 
 So the leverage is not "make the model smarter"; it is:
 1. fresh context, 2. a written brief, 3. investigation framing (never ship
-the anchor), 4. execution evidence, 5. cross-model refutation for tail risk.
+the anchor), 4. execution evidence, 5. adversarial refutation for tail risk (cross-model from Claude; a fresh-context `codex exec` from Codex).
 
 Limitations, honestly: n=2 per cell; single-session mini-repos; grader =
 task author (mitigated by pre-registered binary rubrics + all artifacts kept

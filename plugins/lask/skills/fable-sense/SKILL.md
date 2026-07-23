@@ -77,33 +77,32 @@ benchmark; see eval/bench):
   call), say so with options — staying silent ships it. Only 2/9 benchmark
   runs did this unprompted.
 
-### 4. High stakes → cross-model tail guard
+### 4. High stakes → adversarial tail guard
 
 Ceiling performance ≠ zero tail risk. When failure is hard to reverse, hides,
-or gets built upon, have the *other* model family try to refute the finished
-artifact (uncorrelated blind spots):
+or gets built upon, have an independent fresh-context reviewer try to refute
+the finished artifact. From a Claude session, use the *other* model family
+(uncorrelated blind spots). From a Codex session, spawn a fresh `codex exec`
+— do NOT shell out to `claude -p`; measured in production it fails or times
+out on nearly every run inside Codex sessions (ConnectionRefused, 10-minute
+silent hangs), and fresh context is what the guard buys anyway:
 
 ```bash
-# Claude session -> Codex reviews (write prompt to a file, pipe via stdin):
+# Either direction — write the prompt to a file, pipe via stdin
+# (never pass it as a shell arg; codex hangs on an open stdin):
 codex exec --sandbox read-only --skip-git-repo-check --color never \
   --cd "<workspace>" --output-last-message "<out.md>" - < review-prompt.md
-# Codex session -> Claude reviews — ALWAYS stream the output; a bare
-# `claude -p` prints nothing until it finishes and reads as hung:
-claude -p "Adversarially review <artifact>: try to refute its key claims. Findings as file:line, severity-ranked." \
-  --output-format stream-json --verbose
 ```
 
 Review prompt must say: *try to refute; report what's missing, not only
-what's wrong; anchor findings to file:line.*
+what's wrong; anchor findings to file:line* — and carry only the artifact,
+never your own reasoning about it (a refuter anchored on your conclusions
+inherits your blind spots).
 
-Streaming fixes the silence, not the duration: still give the cross-model
-call a generous timeout (≥10 minutes) — a default 120 s exec timeout kills
-`claude -p` before it answers. With `--output-format stream-json --verbose`
-the CLI emits JSONL events continuously (without `--verbose` it errors); the
-final `"type":"result"` line carries the complete review. If the call still
-can't complete or the `claude` CLI is unavailable, say so in the deliverable
-rather than skipping silently (as validated: the Codex run disclosed its
-timed-out attempt).
+Give the pass a generous timeout (≥10 minutes) and read the review from the
+`--output-last-message` file. If it can't run or complete, say so in the
+deliverable rather than skipping silently (as validated: the Codex run
+disclosed its timed-out attempt).
 
 ## Quick reference
 
@@ -112,7 +111,7 @@ timed-out attempt).
 | Hard ask arrives mid-long-session | Brief → fresh subagent / new `codex exec` |
 | Ask carries someone's diagnosis | Strip it from the dispatch; list it under EVIDENCE FIRST as unverified |
 | "Just do X quickly" but X looks wrong | Investigate first (it's usually cheaper than the workaround); if you deviate, lead your answer with the deviation and why |
-| Result will be built upon / hard to undo | Cross-model refutation pass before accepting |
+| Result will be built upon / hard to undo | Adversarial refutation pass before accepting — cross-model from Claude, fresh `codex exec` from Codex |
 | Session already running on Fable | Skip the protocol — it's native; use only the brief/dispatch discipline when handing work to Opus/Codex |
 | Mechanical task, clear spec | Skip this skill entirely — just do it |
 

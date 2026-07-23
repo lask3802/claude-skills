@@ -174,14 +174,19 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
   for (const field of ["TASK:", "REAL GOAL:", "DELIVERABLE:", "STAKES:", "CONSTRAINTS:", "EVIDENCE FIRST:"])
     assert.match(body, new RegExp(field), `brief template must include ${field}`);
   assert.match(body, /codex exec --sandbox read-only/, "Claude->Codex tail guard must embed the verified recipe");
-  assert.match(body, /claude -p/, "Codex->Claude tail guard must be present");
+  assert.match(body, /do NOT shell out to `claude -p`/, "Codex-side tail guard must prohibit claude -p (retired: fails/times out in Codex sessions)");
   assert.match(body, /10 minutes/, "must carry the measured timeout guidance");
   assert.match(body, /Skip this skill entirely/, "quick reference must keep the mechanical-task skip row");
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "codex-agents-block.md")), "codex adapter must ship");
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "eval", "RUBRICS.md")), "pre-registered rubrics must ship for re-validation");
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "fable-sense", "eval", "results", "grades.md")), "graded evidence must ship");
   const block = read("skills/fable-sense/codex-agents-block.md");
-  for (const src of [body, block]) assert.match(src, /--output-format stream-json --verbose/, "Codex->Claude tail guard must stream — a silent claude -p reads as hung");
+  for (const src of [body, block]) {
+    assert.doesNotMatch(src, /--output-format stream-json/, "retired Codex->Claude streaming recipe must be gone");
+    assert.match(src, /--output-last-message/, "tail guard must collect the review from the output-last-message file");
+  }
+  assert.match(block, /codex exec --sandbox read-only/, "codex block tail guard must run a fresh codex exec");
+  assert.match(block, /do\s+NOT shell out to `claude -p`/i, "codex block must carry the claude -p prohibition");
   assert.match(block, /BEGIN FABLE-SENSE/, "codex block must be marker-delimited for clean install/uninstall");
   assert.match(block, /skip this entirely/i, "codex block must carry the skip-gate");
   for (const src of [body, block]) {
@@ -203,10 +208,10 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.6.3 and describes director mode and fable-sense", () => {
+test("plugin.json is 1.6.4 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.6.3");
+  assert.equal(pkg.version, "1.6.4");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });

@@ -33,14 +33,18 @@ verification, not a bigger model.
    green is not enough; (c) before finishing, name adjacent hazards you
    observed but did not fix (e.g., a retry wrapper around a non-idempotent
    call), with options.
-5. **High stakes → cross-model tail guard.** If the result is hard to
-   reverse, hides failure, or gets built upon, have Claude try to refute it.
-   ALWAYS stream the output — a bare `claude -p` prints nothing until it
-   finishes and reads as a hang:
-   `claude -p "Adversarially review <artifact>: try to refute its key claims; report what is missing, not only what is wrong; findings as file:line." --output-format stream-json --verbose`
-   Events stream as JSONL and the final `"type":"result"` line carries the
-   full review. Still allow a generous timeout (≥10 minutes; a 120 s default
-   kills it before it answers) — streaming fixes the silence, not the
-   duration. If it cannot complete or the `claude` CLI is unavailable, skip
-   this pass and disclose that in your deliverable instead of blocking on it.
+5. **High stakes → adversarial tail guard.** If the result is hard to
+   reverse, hides failure, or gets built upon, spawn a fresh `codex exec`
+   session to try to refute it — fresh context is what the guard buys. Do
+   NOT shell out to `claude -p`; measured in production it fails or times
+   out on nearly every run inside Codex sessions. Write the review prompt
+   to a file and pipe it via stdin (never as a shell arg — codex hangs on
+   an open stdin):
+   `codex exec --sandbox read-only --skip-git-repo-check --color never --cd "<workspace>" --output-last-message "<out.md>" - < review-prompt.md`
+   The prompt must say: try to refute; report what is missing, not only
+   what is wrong; findings as file:line — and carry only the artifact,
+   never your own conclusions about it. Allow a generous timeout
+   (≥10 minutes) and read the review from the output file. If the pass
+   cannot run or complete, skip it and disclose that in your deliverable
+   instead of blocking on it.
 <!-- END FABLE-SENSE -->
