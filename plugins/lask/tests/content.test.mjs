@@ -208,10 +208,10 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.6.4 and describes director mode and fable-sense", () => {
+test("plugin.json is 1.7.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.6.4");
+  assert.equal(pkg.version, "1.7.0");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });
@@ -279,4 +279,22 @@ test("marketplace.json lask entry version matches plugin.json", () => {
   const entry = JSON.stringify(marketplace);
   assert.match(entry, new RegExp(pkg.version.replace(/\./g, "\\.")), "marketplace must reference the current plugin version");
   assert.ok(!entry.includes("1.1.0"), "stale 1.1.0 version must not remain in marketplace.json");
+});
+
+test("director mode ships the four switch commands, each runnable", () => {
+  for (const c of ["director-on", "director-off", "director-status", "director-reset"]) {
+    const { fm, body } = parseFrontmatter(read(path.join("commands", `${c}.md`)));
+    assert.ok(fm.description, `${c} needs a description for the command picker`);
+    assert.match(body, /director-toggle\.js/, `${c} must invoke the toggle script`);
+    assert.match(body, /\$\{CLAUDE_PLUGIN_ROOT\}/, `${c} must resolve the script via CLAUDE_PLUGIN_ROOT`);
+  }
+  for (const f of ["director-state.js", "director-toggle.js"])
+    assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", f)), `${f} must exist`);
+});
+
+test("director mode is documented as opt-in and off by default", () => {
+  const skill = read("skills/director/SKILL.md");
+  assert.match(skill, /opt-in/i, "the director skill must say the mode is opt-in");
+  assert.match(skill, /LASK_DIRECTOR/, "the director skill must name the env switch");
+  assert.match(skill, /lask:director-on/, "the director skill must name the slash switch");
 });

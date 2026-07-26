@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 // SessionStart hook: inject the director-mode operating policy as context.
 // Kept deliberately compact — this is the plugin's only recurring token overhead.
+// Injects nothing unless director mode is switched on (see director-state.js);
+// with it off the plugin still ships its skills, agents and model-tiering hooks.
 'use strict';
+
+const { directorEnabled } = require('./director-state.js');
 
 const context = `<lask-director-policy>
 Director mode is ACTIVE (lask plugin). The main session is the DIRECTOR — often an expensive model (fable) with scarce quota. Its job is judgment, not labor: understand, decide, dispatch, verify, communicate. Delegation also protects the director's context window for high-value decisions.
@@ -35,6 +39,8 @@ Full rubric: skill lask:director. Scenario loops: skill lask:delegation-playbook
 let raw = '';
 process.stdin.on('data', (c) => (raw += c));
 process.stdin.on('end', () => {
+  // Drain stdin first, then decide: exiting before the writer finishes can EPIPE it.
+  if (!directorEnabled()) process.exit(0); // no output = no policy
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {

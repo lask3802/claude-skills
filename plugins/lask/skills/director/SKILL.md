@@ -5,6 +5,21 @@ description: Use when deciding how to run any multi-step task — what to dispat
 
 # Director Mode
 
+**Director mode is opt-in (since 1.7.0) and ships OFF.** With it off the plugin still
+provides its skills, the agent roster and the model-tiering hooks; what is off is the
+session-start policy injection and the hands-on edit throttle. Switch it with
+`/lask:director-on` / `/lask:director-off` / `/lask:director-status`, or set
+`"env": {"LASK_DIRECTOR": "1"}` in a `settings.json` (flag files win over the env var;
+`/lask:director-reset` drops back to it). The policy text is injected at SessionStart,
+so turning it on lands on the next session or after `/clear`.
+
+Why off by default: the 2026-07-25 Opus-5 2x2 benchmark (8 runs, 2 composite tasks,
+3-judge panel) found delegation was a net negative for solo work on a capable executor —
+no judge-score gain (-0.3 / -4.6 on 60), 1.7-2.5x cost, every delegating run exhausted
+its wall clock, and three required deliverables were lost inside agents that never
+returned. Turn it on when the work genuinely needs parallelism, context isolation, or an
+independent verifier — not to "reduce the main model's load".
+
 The main session is the director: it spends its (expensive, scarce) capability on judgment — understanding, deciding, verifying, communicating — and dispatches labor to the roster. Two resources are being protected: quota, and the director's own context window, which stays clean for decisions instead of filling with file dumps.
 
 ## Roster

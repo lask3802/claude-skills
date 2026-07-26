@@ -15,6 +15,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { directorEnabled } = require('./director-state.js');
 
 const MAX_TRIVIAL_LINES = 10; // an edit at or below this many lines can be direct...
 const FREE_FILES = 1;         // ...to at most this many distinct files per session
@@ -59,6 +60,8 @@ function main(raw) {
   } catch {
     return; // fail open on malformed stdin
   }
+  // Director mode off (the default since 1.7.0) -> no policy, so nothing to enforce.
+  if (!directorEnabled()) return;
   // Subagent labor is the intended path: agent_id is present ONLY inside a subagent call.
   if (data && data.agent_id) return;
 

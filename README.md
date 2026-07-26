@@ -19,6 +19,21 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 > claude plugin install lask@claude-skills
 > ```
 
+## 開關：director mode（1.7.0 起預設 OFF）
+
+plugin 內的兩塊東西現在可以獨立開關：
+
+| | 預設 | 怎麼切 |
+|---|---|---|
+| **fable-sense** | 需要時才用 | 它是 skill，只在 `/lask:fable-sense` 被調用時載入；要常駐觸發就在 `~/.claude/CLAUDE.md` 加一段 FABLE-SENSE 區塊 |
+| **director mode**（派遣政策注入 + 直接編輯節流） | **OFF** | `/lask:director-on`／`/lask:director-off`／`/lask:director-status`／`/lask:director-reset`，或 settings.json 的 `"env": {"LASK_DIRECTOR": "1"}` |
+
+判定優先序：旗標檔（`~/.claude/lask/director.on|off`，由 slash command 寫入）> `$LASK_DIRECTOR` > 預設 OFF。
+關掉 director **不影響** skills、agent 名冊與 model-tiering hooks，只關掉 SessionStart 的政策注入與編輯節流。
+政策文字只在 SessionStart 注入，所以開啟後要下一個 session 或 `/clear` 才生效（節流則立即生效）。
+
+**為什麼預設關**：2026-07-25 的 Opus 5 2×2 評量（8 runs、2 個複合任務、三評審面板）顯示，在有能力的執行者上做 solo 工作時分派是淨負：評審分數沒有增益（60 分制 −0.3／−4.6）、成本 1.7–2.5 倍、四個分派 run 全部耗盡 wall clock、三份必要交付檔卡在沒回來的 agent 裡。真的需要平行度、上下文隔離或獨立驗證者時再開，不要為了「減輕主模型負擔」而開。
+
 ## 內含 skills
 
 | 指令 | 說明 |

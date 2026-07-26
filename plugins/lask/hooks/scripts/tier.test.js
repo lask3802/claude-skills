@@ -9,6 +9,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 
 const DIR = __dirname;
+const GATE_STATE = fs.mkdtempSync(path.join(os.tmpdir(), 'lask-tier-gate-'));
+
 let passed = 0;
 let failed = 0;
 
@@ -18,6 +20,8 @@ function runHook(script, input) {
     const stdout = execFileSync(process.execPath, [path.join(DIR, script)], {
       input: raw,
       encoding: 'utf8',
+      // director mode is opt-in since 1.7.0; these cases assert its ON behaviour
+      env: { ...process.env, LASK_DIRECTOR: '1', LASK_STATE_DIR: GATE_STATE },
     });
     return { stdout, status: 0 };
   } catch (e) {

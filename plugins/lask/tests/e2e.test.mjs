@@ -11,7 +11,7 @@ const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const ENABLED = process.env.LASK_E2E === "1";
 const INSTALLED = process.env.LASK_E2E_INSTALLED === "1";
 
-function claude(prompt) {
+function claude(prompt, extraEnv = {}) {
   // shell:true on Windows: claude is a .cmd shim, which modern Node refuses to
   // spawn directly (CVE-2024-27980). None of our args contain spaces or quotes,
   // and the prompt travels via stdin, so shell joining is safe here.
@@ -25,14 +25,21 @@ function claude(prompt) {
     encoding: "utf8",
     timeout: 180000,
     shell: process.platform === "win32",
+    env: { ...process.env, ...extraEnv },
   });
 }
 
-test("e2e: director policy block is injected", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
-  const out = claude(
-    "Does your context include a <lask-director-policy> block? Reply with exactly YES-DIRECTOR or NO-DIRECTOR and nothing else.",
-  );
-  assert.match(out, /YES-DIRECTOR/);
+const ASK_POLICY =
+  "Does your context include a <lask-director-policy> block? Reply with exactly YES-DIRECTOR or NO-DIRECTOR and nothing else.";
+
+test("e2e: director policy is injected when switched on", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+  assert.match(claude(ASK_POLICY, { LASK_DIRECTOR: "1" }), /YES-DIRECTOR/);
+});
+
+// The 1.7.0 default: the plugin ships its skills, agents and tiering hooks without
+// putting the delegation policy (or its edit throttle) into every session.
+test("e2e: director policy is absent by default", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+  assert.match(claude(ASK_POLICY, { LASK_DIRECTOR: "0" }), /NO-DIRECTOR/);
 });
 
 test("e2e: all eight lask agents are dispatchable", { skip: !ENABLED && "set LASK_E2E=1" }, () => {

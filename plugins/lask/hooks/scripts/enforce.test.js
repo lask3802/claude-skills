@@ -12,6 +12,7 @@ const os = require('node:os');
 const DIR = __dirname;
 const SCRIPT = path.join(DIR, 'director-enforce.js');
 const STATE = fs.mkdtempSync(path.join(os.tmpdir(), 'lask-enforce-test-'));
+const GATE_STATE = fs.mkdtempSync(path.join(os.tmpdir(), 'lask-enforce-gate-'));
 
 let passed = 0;
 let failed = 0;
@@ -30,7 +31,12 @@ function run(input, stateDir) {
   const args = [SCRIPT];
   if (stateDir !== undefined) args.push(stateDir);
   try {
-    const stdout = execFileSync(process.execPath, args, { input: raw, encoding: 'utf8' });
+    const stdout = execFileSync(process.execPath, args, {
+      input: raw,
+      encoding: 'utf8',
+      // director mode is opt-in since 1.7.0; the throttle only runs when it is ON
+      env: { ...process.env, LASK_DIRECTOR: '1', LASK_STATE_DIR: GATE_STATE },
+    });
     return { stdout, status: 0 };
   } catch (e) {
     return { stdout: e.stdout || '', status: e.status ?? 1 };
