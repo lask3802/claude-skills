@@ -41,8 +41,11 @@ plugin 內的兩塊東西現在可以獨立開關：
 | `/lask:handoff` | 產生一份自足、可直接複製的「交接文件」（目標、檔案+行號、關鍵發現、決策、現況、下一步），整則訊息就是文件，用 `/copy` 貼到新 session 或交給其他 agent。支援 `/lask:handoff <focus>` 聚焦、`/lask:handoff --file` 另存 HANDOFF.md。 |
 | `/lask:director` | Director-mode 完整 rubric：操作迴圈、派遣 prompt 四件套、執行者模型與驗證強度的情境校準表、跨模型 second-opinion 裁決守則。 |
 | `/lask:delegation-playbooks` | 五大場景（feature／bugfix／research／refactor／review）的標準派遣迴圈、現成 dispatch prompt 與升級點。 |
-| `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|terra\|luna] [--effort none\|low\|medium\|high\|xhigh] [--sandbox write\|read] <任務>`。內建 JSONL runner：即時摘要 Codex events；純 event artifact、可輪詢的 PID＋quiet-heartbeat telemetry、獨立 stderr／final-message、真實 exit code；並拒絕覆寫前一次證據。高／xhigh 可背景執行而不再盲等。 |
-| `/lask:fable-sense` | 高難度／模糊／高風險任務的「條件工程」紀律：任務書、新鮮派發、調查式措辭、執行證據與對抗式尾部防護。Claude 端的 Codex refuter 走 JSONL runner＋heartbeat；Codex／AGENTS 可攜版走 `--json | tee` 並保留 pipeline failure。兩者都保留 final artifact、分開 stderr，且 parent timeout 後先查 child／artifact 才能重試。既有 19 次預先登錄評測、Codex 雙軌手動安裝與機械任務 skip-gate 維持不變。 |
+| `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|terra\|luna] [--effort none\|low\|medium\|high\|xhigh] [--sandbox write\|read] <任務>`。啟動後立即回傳 workspace-scoped job ID；底層保存純 event JSONL、authenticated owner＋PID、quiet-heartbeat telemetry、獨立 stderr／final-message 與真實 exit code，terminal commit 會綁定 final 的 size＋SHA-256。 |
+| `/lask:codex-status` | 查目前 workspace 最新或指定 Codex job；顯示 queued/running/completed 等狀態、reasoning/investigating/editing/verifying 等 phase、最後活動與 artifact 路徑。`--all` 可列出所有 jobs。 |
+| `/lask:codex-result` | 讀取最新或指定已結束 job 的 Codex final response；失敗／取消時不會假裝成功。 |
+| `/lask:codex-cancel` | 安全取消最新或指定 job。controller 不依 manifest PID 直接殺程序，而由 owning runner 收到 job-specific request 後終止自己的 child tree。 |
+| `/lask:fable-sense` | 高難度／模糊／高風險任務的「條件工程」紀律：任務書、新鮮派發、調查式措辭、執行證據與對抗式尾部防護。Claude 端的 Codex refuter 走輕量 job UX＋JSONL runner；Codex／AGENTS 可攜版走 `--json | tee` 並保留 pipeline failure。兩者都保留 final artifact、分開 stderr，且 waiter timeout 後先查 job／artifact 才能重試。既有 19 次預先登錄評測、Codex 雙軌手動安裝與機械任務 skip-gate 維持不變。 |
 
 ## Director mode（安裝即生效）
 
@@ -78,7 +81,7 @@ plugin 內的兩塊東西現在可以獨立開關：
 ```
 node plugins/lask/hooks/scripts/tier.test.js      # model-tiering hook 行為測試
 node plugins/lask/hooks/scripts/enforce.test.js   # director-enforce hook 行為測試（12 案）
-node --test plugins/lask/tests/codex-jsonl-runner.test.mjs plugins/lask/tests/content.test.mjs plugins/lask/tests/e2e.test.mjs   # runner 行為＋內容不變量
+node --test plugins/lask/tests/codex-jsonl-runner.test.mjs plugins/lask/tests/codex-job.test.mjs plugins/lask/tests/content.test.mjs plugins/lask/tests/e2e.test.mjs   # runner／job UX 行為＋內容不變量
 LASK_E2E=1 node --test plugins/lask/tests/e2e.test.mjs                            # headless E2E（燒 token；--plugin-dir 載入 repo 工作副本）
 LASK_E2E=1 LASK_E2E_DISPATCH=1 node --test plugins/lask/tests/e2e.test.mjs        # 另含 lask:scout 實地派遣 sentinel 驗證（雙重 gate）
 LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/e2e.test.mjs      # 安裝後 smoke（驗 user-scope 安裝）
@@ -88,6 +91,8 @@ LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/e2e.test.mjs     
 
 > 需求：`node` 在 PATH 上；E2E 另需 `claude` CLI；`lask:second-opinion` 需已認證的 `codex` CLI。
 > 設計文件：`docs/superpowers/specs/2026-07-02-director-mode-design.md`（前身：`2026-06-11-model-tiering-design.md`）。
+
+> Codex job 的 cancel 是 cooperative ownership：controller 只寫 job-specific request，owning runner 再終止其 child tree；manifest PID 永遠不被 controller 直接 signal。正常 cancel 與 parent/waiter timeout 已覆蓋，Windows `taskkill /T /F` 失敗時 job 會標 failed、不會假裝 cancelled。若 runner 本身遭 OS 級強制終止（例如 SIGKILL／Task Manager End Process），純 Node 版本沒有 Windows Job Object／POSIX parent-death native supervisor，Codex child 仍可能成為 orphan；此時不要只看 PID 手動重試，先依 workspace process／artifact 證據處理。
 
 ## 更新
 
@@ -125,6 +130,7 @@ plugins/
         enforce.test.js     # director-enforce hook 行為測試
     agents/                 # 八人編制（scout/researcher/implementer/debugger/verifier/reviewer/second-opinion/codex-implementer）
     scripts/
+      codex-job.mjs         # workspace-scoped start/status/result/cancel job UX
       codex-jsonl-runner.mjs # Codex events＋telemetry JSONL／artifact／process-tree runner
     skills/
       director/             # 核心 rubric
@@ -132,6 +138,7 @@ plugins/
       fable-sense/          # 硬任務條件工程（含 codex adapter 與凍結 eval）
       handoff/
     tests/
+      codex-job.test.mjs    # job lifecycle／scope／timeout／safe cancellation tests
       codex-jsonl-runner.test.mjs # streaming／telemetry／artifact／process-tree tests
       content.test.mjs      # 內容不變量
       e2e.test.mjs          # LASK_E2E=1 headless 驗證

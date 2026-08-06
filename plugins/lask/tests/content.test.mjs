@@ -76,14 +76,12 @@ test("read-only agents forbid mutation and the builder/grader split holds", () =
 
 test("second-opinion embeds the verified codex recipe and the no-substitute rule", () => {
   const src = read("agents/second-opinion.md");
-  assert.match(src, /codex-jsonl-runner\.mjs/, "must use the observable runner");
+  assert.match(src, /codex-job\.mjs/, "must use the observable job controller");
   assert.match(src, /codex exec --sandbox read-only --skip-git-repo-check --color never/);
   assert.match(src, /--json/, "must request live JSONL events");
-  assert.match(src, /codex-second-opinion-attempt1-events\.jsonl/, "must preserve the event stream");
-  assert.match(src, /codex-second-opinion-attempt1-telemetry\.jsonl/, "must persist pollable heartbeats and PIDs");
-  assert.match(src, /codex-second-opinion-attempt1-stderr\.log/, "must keep stderr out of JSONL");
-  assert.match(src, /--telemetry/, "runner must receive a telemetry artifact");
-  assert.match(src, /--output-last-message/);
+  assert.match(src, /job ID/i, "must surface a stable job handle");
+  assert.match(src, /codex-status/, "must document status UX");
+  assert.match(src, /codex-result/, "must document result UX");
   assert.match(src, /--prompt/, "runner must pipe the prompt file to stdin");
   assert.match(src, /never as a shell argument/i);
   assert.match(src, /never substitute/i);
@@ -96,16 +94,14 @@ test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () 
   assert.match(src, /codex exec -m gpt-5\.6-sol/, "must pin the model");
   assert.match(src, /model_reasoning_effort="xhigh"/, "must default to xhigh effort");
   assert.match(src, /--sandbox workspace-write/, "write mode is the whole point");
-  assert.match(src, /codex-jsonl-runner\.mjs/, "must use the observable runner");
+  assert.match(src, /codex-job\.mjs/, "must use the observable job controller");
   assert.match(src, /--json/, "must request live JSONL events");
-  assert.match(src, /codex-impl-attempt1-events\.jsonl/, "must preserve the event stream");
-  assert.match(src, /codex-impl-attempt1-telemetry\.jsonl/, "must persist pollable heartbeats and PIDs");
-  assert.match(src, /codex-impl-attempt1-stderr\.log/, "must keep stderr out of JSONL");
-  assert.match(src, /--telemetry/, "runner must receive a telemetry artifact");
-  assert.match(src, /--output-last-message/);
+  assert.match(src, /job ID/i, "must surface a stable job handle");
+  assert.match(src, /codex-status/, "must document status UX");
+  assert.match(src, /codex-result/, "must document result UX");
   assert.match(src, /--prompt/, "runner must pipe the prompt file to stdin");
   assert.match(src, /never as a shell argument/i);
-  assert.match(src, /run_in_background/i, "must run long xhigh sessions in the background");
+  assert.match(src, /already detached/i, "must explain that start is already backgrounded");
   assert.match(src, /resets_at/, "rate-limit reader must key off the real resets_at field");
   assert.match(src, /remaining < 20/, "must state the 20%-remaining warn threshold");
   assert.match(src, /BEFORE and AFTER/i, "must check limits on both sides of the run");
@@ -140,14 +136,12 @@ test("codex-run skill ships the verified model×effort table and the mechanical 
     assert.match(body, new RegExp(m.replace(/\./g, "\\.")), `table must list ${m}`);
   }
   assert.match(body, /minimal.*(400|unsupported)/is, "must document that minimal is rejected by all three models");
-  assert.match(body, /codex-jsonl-runner\.mjs/, "must use the observable runner");
+  assert.match(body, /codex-job\.mjs/, "must use the observable job controller");
   assert.match(body, /--prompt/, "runner must pipe the prompt file to stdin");
   assert.match(body, /--json/, "must request live JSONL events");
-  assert.match(body, /codex-run-attempt1-events\.jsonl/, "must preserve the event stream");
-  assert.match(body, /codex-run-attempt1-telemetry\.jsonl/, "must persist pollable heartbeats and PIDs");
-  assert.match(body, /codex-run-attempt1-stderr\.log/, "must keep stderr out of JSONL");
-  assert.match(body, /--telemetry/, "runner must receive a telemetry artifact");
-  assert.match(body, /run_in_background/i, "must run high/xhigh sessions in the background");
+  assert.match(body, /job ID/i, "must surface a stable job handle");
+  assert.match(body, /codex-status/, "must document status UX");
+  assert.match(body, /codex-result/, "must document result UX");
   assert.match(body, /--output-last-message/);
   assert.match(body, /Never add `--dangerously-bypass/i, "the dangerous bypass flag must appear only as a prohibition");
   assert.match(body, /at capacity/i, "capacity error must be documented as transient");
@@ -193,7 +187,7 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
   for (const field of ["TASK:", "REAL GOAL:", "DELIVERABLE:", "STAKES:", "CONSTRAINTS:", "EVIDENCE FIRST:"])
     assert.match(body, new RegExp(field), `brief template must include ${field}`);
   assert.match(body, /codex exec --sandbox read-only/, "Claude->Codex tail guard must embed the verified recipe");
-  assert.match(body, /codex-jsonl-runner\.mjs/, "Claude-side tail guard must use the observable runner");
+  assert.match(body, /codex-job\.mjs/, "Claude-side tail guard must use the observable job controller");
   assert.match(body, /do NOT shell out to `claude -p`/, "Codex-side tail guard must prohibit claude -p (retired: fails/times out in Codex sessions)");
   assert.match(body, /10 minutes/, "must carry the measured timeout guidance");
   assert.match(body, /Skip this skill entirely/, "quick reference must keep the mechanical-task skip row");
@@ -208,6 +202,9 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
     assert.match(src, /\.jsonl/, "tail guard must preserve a JSONL event artifact");
   }
   assert.match(body, /heartbeat/i, "Claude-side runner must surface quiet-period liveness");
+  assert.match(body, /codex-status/, "Claude-side job UX must expose status");
+  assert.match(body, /codex-result/, "Claude-side job UX must expose result");
+  assert.match(body, /codex-cancel/, "Claude-side job UX must expose cancellation");
   assert.match(block, /set -o pipefail/, "portable Codex block must preserve codex failures through tee");
   assert.match(block, /tee/, "portable Codex block must show and save live events");
   assert.match(block, /review-attempt1-stderr\.log/, "portable commands must preserve stderr separately");
@@ -245,10 +242,10 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.7.1 and describes director mode and fable-sense", () => {
+test("plugin.json is 1.8.0 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.7.1");
+  assert.equal(pkg.version, "1.8.0");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
 });
@@ -268,6 +265,37 @@ test("codex JSONL runner is cross-platform, observable, and exit-code safe", () 
   assert.match(src, /invalid Codex JSONL stdout/, "runner must fail closed on malformed child stdout");
   assert.match(src, /fs\.openSync\(file, "wx"\)/, "runner must refuse to overwrite earlier attempt evidence");
   assert.match(src, /--output-last-message/, "runner must require the final response artifact");
+  assert.match(src, /runner\.cancelled/, "runner must acknowledge job cancellation");
+  assert.match(src, /runner\.cancel\.ignored/, "invalid cross-job requests must not terminate the child");
+  assert.match(src, /job_id/, "runner telemetry must carry the job identity");
+  assert.match(src, /terminalFile/, "job completion must have a durable terminal commit");
+  assert.match(src, /sawTurnCompleted/, "exit zero alone must not override failed JSONL semantics");
+  assert.match(src, /sha256/, "terminal success must bind the final artifact hash");
+});
+
+test("Codex job controller and slash commands ship the lightweight lifecycle UX", () => {
+  const rel = "scripts/codex-job.mjs";
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, rel)), "job controller must ship with the plugin");
+  const src = read(rel);
+  assert.match(src, /startJob/);
+  assert.match(src, /statusCommand/);
+  assert.match(src, /resultCommand/);
+  assert.match(src, /cancelCommand/);
+  assert.match(src, /cancel\.request\.json/);
+  assert.match(src, /terminal\.json/);
+  assert.match(src, /owner\.json/);
+  assert.match(src, /owner_token/, "runner identity must not depend on a truncated telemetry tail");
+  assert.match(src, /job artifact escapes its directory/, "manifest paths must be contained in the job directory");
+  assert.ok(
+    src.indexOf("writeJsonExclusive(paths.manifest, manifest)") < src.indexOf("const runner = spawn"),
+    "the observable manifest must be durable before a detached runner starts",
+  );
+  assert.doesNotMatch(src, /process\.kill\(manifest/, "controller must never signal a stored manifest PID");
+  for (const command of ["codex-status", "codex-result", "codex-cancel"]) {
+    const file = path.join(PLUGIN_ROOT, "commands", `${command}.md`);
+    assert.ok(fs.existsSync(file), `${command} slash command must ship`);
+    assert.match(fs.readFileSync(file, "utf8"), /codex-job\.mjs/);
+  }
 });
 
 test("hooks.json wires the three hooks to existing scripts", () => {
@@ -320,6 +348,9 @@ test("README documents the roster, the skills, and all three test commands", () 
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/enforce\.test\.js/, "README must list the enforce.test.js command");
   assert.match(readme, /node --test plugins\/lask\/tests\//);
   assert.match(readme, /codex-jsonl-runner\.test\.mjs/, "README standard suite must run the behavioral runner tests");
+  assert.match(readme, /codex-job\.test\.mjs/, "README standard suite must run job lifecycle tests");
+  for (const command of ["codex-status", "codex-result", "codex-cancel"])
+    assert.match(readme, new RegExp(`lask:${command}`), `README must document lask:${command}`);
   assert.match(readme, /LASK_E2E=1/);
   assert.match(readme, /director-enforce/, "README must document the enforcement hook");
   assert.match(readme, /hands-on/i, "README must document the hands-on escape hatch");

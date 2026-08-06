@@ -43,12 +43,14 @@ direction): cross-model diversity is traded away for a guard that actually
 completes, and fresh context + adversarial framing is where the protocol's
 measured leverage sits.
 
-2026-08-06 — all Claude-side Codex entrypoints now use the plugin's
-`codex-jsonl-runner.mjs`: `codex exec --json` events are saved as pure JSONL,
-stderr is separate, and concise progress is printed live. A second telemetry
-JSONL records PIDs plus 30-second quiet-period heartbeats, so it can be polled
-even when the outer UI buffers stdout. The final response remains a separate
-`--output-last-message` artifact, and attempt artifacts are never overwritten.
+2026-08-06 — all Claude-side Codex entrypoints use the plugin's
+`codex-job.mjs`, a lightweight job layer over `codex-jsonl-runner.mjs`.
+`start` returns immediately with a workspace-scoped job ID; status maps raw
+events into a small semantic phase, while result and safe self-cancellation are
+available through slash commands. `codex exec --json` events remain pure JSONL,
+stderr stays separate, and telemetry records PIDs plus 30-second quiet-period
+heartbeats. The final response remains a separate `--output-last-message`
+artifact owned by the controller, and every job gets isolated evidence.
 The Codex/AGENTS copy cannot depend on the
 Claude plugin path, so it ships a self-contained `--json | tee` recipe with
 pipe-failure preservation instead.

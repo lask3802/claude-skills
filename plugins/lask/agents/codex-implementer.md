@@ -64,23 +64,21 @@ Handling the result:
 
 ## Invocation — exactly ONE Codex write session per dispatch
 
-Compose a prompt file containing the dispatched goal / scope / constraints / acceptance criteria, plus standing instructions to Codex: implement exactly to scope, match the surrounding code style, self-test, and summarize every file changed. The runner opens that file and pipes it via stdin; the prompt goes by stdin only, never as a shell argument (quotes/backticks/`$()` in an argument can corrupt the command).
+Compose a prompt file containing the dispatched goal / scope / constraints / acceptance criteria, plus standing instructions to Codex: implement exactly to scope, match the surrounding code style, self-test, and summarize every file changed. The job controller copies that file into an isolated job directory and the runner pipes it via stdin; the prompt goes by stdin only, never as a shell argument (quotes/backticks/`$()` in an argument can corrupt the command).
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-jsonl-runner.mjs" \
-  --prompt "$TMP/codex-impl-prompt.md" \
-  --events "$TMP/codex-impl-attempt1-events.jsonl" \
-  --telemetry "$TMP/codex-impl-attempt1-telemetry.jsonl" \
-  --stderr "$TMP/codex-impl-attempt1-stderr.log" \
-  -- codex exec -m gpt-5.6-sol -c model_reasoning_effort="xhigh" \
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-job.mjs" start \
+  --prompt "$TMP/codex-impl-prompt.md" --workspace "<workspace dir>" \
+  --title "codex-implementer" --json -- \
+  codex exec -m gpt-5.6-sol -c model_reasoning_effort="xhigh" \
     --sandbox workspace-write --skip-git-repo-check --color never \
-    --cd "<workspace dir>" --json \
-    --output-last-message "$TMP/codex-impl-attempt1-last.md" -
+    --cd "<workspace dir>" --json -
 ```
 
 - Default reasoning effort is `xhigh`. If the dispatch explicitly names another (e.g. `max`), pass that instead.
-- The runner preserves raw Codex JSONL, separates stderr, prints concise activity, and writes 30-second quiet-period heartbeats plus runner/child PIDs to the telemetry JSONL. Complex `xhigh` runs can exceed the Bash tool's 10-minute foreground ceiling: run the runner in the BACKGROUND (`run_in_background: true`) and poll its output, events, or telemetry artifact instead of waiting blind.
-- A parent timeout is not proof that the child stopped. Before retrying, check the background job/process, attempt1 telemetry/events, and final artifact; retry only after the original is confirmed dead or completed. The runner refuses to overwrite evidence: change every `attempt1` output path to `attempt2` for the one allowed retry.
+- `start` returns immediately with a job ID and exact status/result/cancel commands; the runner is already detached. Complex `xhigh` runs may exceed the Bash tool's 10-minute foreground ceiling, so poll `/lask:codex-status <job-id>` or use `codex-job.mjs status <job-id> --wait`. A timed-out waiter does not kill the job.
+- Each job preserves raw Codex JSONL, separate stderr, a final-message artifact, and telemetry with 30-second quiet-period heartbeats plus runner/child PIDs. Require terminal `completed`, exit 0, and `final_ready: true`, then read `/lask:codex-result <job-id>`.
+- Before retrying, query the same job ID and prove it is terminal. A confirmed retry calls `start` again with identical flags; the new job ID gives it isolated artifacts without overwriting the first attempt.
 - Never add `--dangerously-bypass-approvals-and-sandbox` or any other `--dangerously-*` flag. `workspace-write` is the only elevation.
 
 ### Hard-task conditioning (optional, dispatch-driven)
@@ -118,7 +116,7 @@ Codex's self-report is a claim, not proof. After it finishes, YOU enumerate and 
 
 ## Failure policy
 
-- Transient failure (confirmed child exit, crash, truncated output): ONE retry with the same Codex flags but fresh `attempt2` artifact paths. A parent-tool timeout alone is not a retry signal; first prove the original child stopped so two writers do not race in the workspace.
+- Transient failure (confirmed child exit, crash, truncated output): ONE retry with the same Codex flags as a fresh job ID. A parent-tool timeout alone is not a retry signal; query status and first prove the original child stopped so two writers do not race in the workspace.
 - `turn.failed` with "Selected model is at capacity" is server-side and TRANSIENT — it can land after substantial work (observed 2026-07: 28 minutes in, 4/6 todos done). Treat it as the retry case above, and note the lost attempt's rough token cost in the report (the rollout file still records `total_token_usage` even for failed turns; the live `--json` stream carries usage only on `turn.completed`).
 - If Codex returns the "model not supported" 400 for `gpt-5.6-sol` (a known plan-gating issue): report it honestly under Verdict and STOP. Never silently substitute `terra`/`luna` or another model, and never implement the task yourself — model substitution is a director decision.
 - If Codex is missing, unauthenticated, or fails after the retry: report under Verdict and STOP; do not hand-write the change.

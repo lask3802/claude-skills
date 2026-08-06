@@ -1,6 +1,6 @@
 {
   "name": "lask",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "lask's personal Claude Code plugin: opt-in director-mode delegation (eight-agent roster incl. Codex implementer, playbooks, calibrated verification, Codex second opinions) with hook-enforced model tiering, fable-sense hard-task conditions discipline, plus handoff. Director mode ships OFF by default — switch it with /lask:director-on|off or LASK_DIRECTOR.",
   "author": {
     "name": "lask3802"

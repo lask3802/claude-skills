@@ -87,16 +87,15 @@ the finished artifact. From a Claude session, use the *other* model family
 out on nearly every run inside Codex sessions (ConnectionRefused, 10-minute
 silent hangs), and fresh context is what the guard buys anyway:
 
-From the Claude plugin, use its observable runner (never pass the prompt as a
-shell argument):
+From the Claude plugin, use its observable job controller (never pass the
+prompt as a shell argument):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-jsonl-runner.mjs" \
-  --prompt review-prompt.md --events review-attempt1-events.jsonl \
-  --telemetry review-attempt1-telemetry.jsonl \
-  --stderr review-attempt1-stderr.log -- \
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-job.mjs" start \
+  --prompt review-prompt.md --workspace "<workspace>" \
+  --title "fable-sense refutation" --json -- \
   codex exec --sandbox read-only --skip-git-repo-check --color never \
-    --cd "<workspace>" --json --output-last-message "<out-attempt1.md>" -
+    --cd "<workspace>" --json -
 ```
 
 When this skill is copied into Codex, `${CLAUDE_PLUGIN_ROOT}` is unavailable.
@@ -108,16 +107,20 @@ what's wrong; anchor findings to file:line* — and carry only the artifact,
 never your own reasoning about it (a refuter anchored on your conclusions
 inherits your blind spots).
 
-The Claude runner writes pure event JSONL, keeps stderr separate, prints activity,
-and writes PIDs plus quiet-period heartbeats to a telemetry JSONL. The portable
+The Claude controller returns a job ID immediately. Use
+`/lask:codex-status <job-id>` to see semantic phase and liveness,
+`/lask:codex-result <job-id>` to read the final review, or
+`/lask:codex-cancel <job-id>` to request safe cancellation. Each job still writes
+pure `events.jsonl`, keeps `stderr.log` separate, and writes PIDs plus
+quiet-period heartbeats to `telemetry.jsonl`; the controller owns
+`--output-last-message` and `last.md`. The portable
 pipelines show/save raw events, refuse prior attempt artifacts, and require a
 fresh non-empty final message; keep stderr separate from stdout. Events prove liveness,
-not completion: require a zero exit and read the `--output-last-message` file.
-Give the pass a generous timeout (≥10 minutes). If the parent command times out,
-check the child process and attempt artifacts before retrying — an earlier run may
-still finish after its parent timeout. The runner refuses overwrites; any confirmed
-retry must use fresh `attempt2` artifact names. If it can't run or complete, say so in
-the deliverable rather than skipping silently.
+not completion: require status `completed`, zero exit, and `final_ready: true`.
+Give a status waiter a generous timeout (≥10 minutes). If the waiter times out,
+query the same job ID before retrying — the detached run remains observable. Any
+confirmed retry gets a new job ID and isolated artifacts. If it can't run or
+complete, say so in the deliverable rather than skipping silently.
 
 ## Quick reference
 

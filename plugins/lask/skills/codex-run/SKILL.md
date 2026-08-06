@@ -62,34 +62,37 @@ write files, `read-only` for review/analysis/second-opinion.
    dispatch + table):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-jsonl-runner.mjs" \
-     --prompt "<tmp>/codex-run-prompt.md" \
-     --events "<tmp>/codex-run-attempt1-events.jsonl" \
-     --telemetry "<tmp>/codex-run-attempt1-telemetry.jsonl" \
-     --stderr "<tmp>/codex-run-attempt1-stderr.log" \
-     -- codex exec -m <model> -c model_reasoning_effort="<effort>" \
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-job.mjs" start \
+     --prompt "<tmp>/codex-run-prompt.md" --workspace "<workspace>" \
+     --title "codex-run" --json -- \
+     codex exec -m <model> -c model_reasoning_effort="<effort>" \
        --sandbox <workspace-write|read-only> \
-       --skip-git-repo-check --color never --cd "<workspace>" --json \
-       --output-last-message "<tmp>/codex-run-attempt1-last.md" -
+       --skip-git-repo-check --color never --cd "<workspace>" --json -
    ```
 
-   - Effort `high`/`xhigh` on a real task can run 20–60+ minutes: run it in the
-     BACKGROUND (Bash `run_in_background: true`). The runner prints concise
-     JSONL activity. Its separate telemetry JSONL records runner/child PIDs and
-     quiet-period heartbeats; poll it or the event JSONL instead of waiting blind. Never give it a
-     default 2-minute timeout — that kills it mid-flight.
-   - The JSONL event file proves activity, not success. Completion requires a
-     zero runner exit plus the attempt1 final artifact. Stderr stays in its own log.
+   - `start` detaches the runner and returns immediately with a workspace-scoped
+     **job ID**, semantic status, artifact paths, and exact status/result/cancel
+     commands. It is already a background job; do not wrap `start` itself in a
+     shell background operator.
+   - Effort `high`/`xhigh` on a real task can run 20–60+ minutes. Poll with
+     `/lask:codex-status <job-id>` or run `codex-job.mjs status <job-id> --wait`.
+     A parent Bash timeout only stops that waiter; the detached job remains
+     observable. Quiet-period heartbeats and runner/child PIDs remain in the
+     job's telemetry JSONL; raw Codex events, stderr, and final response stay in
+     their own artifacts.
+   - Events prove activity, not success. Completion requires status
+     `completed`, exit 0, and `final_ready: true`. The controller owns and
+     injects `--output-last-message`; never add it to the child command.
    - Never add `--dangerously-bypass-approvals-and-sandbox` or any
      `--dangerously-*` flag. `workspace-write` is the maximum elevation.
 
 3. **Collect the result:**
-   - Read `<tmp>/codex-run-attempt1-last.md` — this is Codex's own final message.
-   - Preserve the attempt1 events, telemetry, and stderr artifacts for
-     progress diagnosis. If the parent Bash call times out, inspect these plus
-     the background process before retrying; the original child may still finish.
-     The runner refuses to overwrite them, so a confirmed retry changes every
-     output filename from `attempt1` to `attempt2` while keeping Codex flags identical.
+   - Run `/lask:codex-result <job-id>` (or the returned `result` command) only
+     after terminal status. It reads Codex's own final-message artifact.
+   - Preserve the job directory for progress diagnosis. If a waiter times out,
+     query the same job ID before retrying. A confirmed retry calls `start`
+     again with identical Codex flags; it gets a fresh job ID and isolated
+     artifacts automatically, so prior evidence is never overwritten.
    - Write mode: run `git status` + `git diff --stat` in the workspace and list
      what actually changed. If nothing changed but the message claims success,
      say exactly that.
@@ -113,7 +116,7 @@ write files, `read-only` for review/analysis/second-opinion.
 | `turn.failed`: "Selected model is at capacity" | Server-side, TRANSIENT — can hit after substantial work. ONE retry with identical Codex flags and fresh `attempt2` artifacts; report the lost attempt. |
 | `400 unsupported_value` on `reasoning.effort` | You picked a ❌ cell (or the menu changed). Use the dispatched/default ✅ cell; if the dispatch itself named the bad cell, report back instead of guessing. |
 | `400` "model not supported" | Plan-gating. Report verbatim and STOP. NEVER silently substitute another model — that is a user/director decision. |
-| Parent Bash timeout | Inspect the background process plus events/final artifacts. Do not retry while the original child may still be alive. |
+| Parent Bash timeout | Query `/lask:codex-status <job-id>`; the detached job survives a timed-out waiter. Do not retry while it may still be alive. |
 | Confirmed child crash/truncated output | ONE retry with identical Codex flags and fresh artifact paths, then report honestly. |
 | stderr: `rmcp::transport ... http://127.0.0.1:8080/mcp` errors | Known noise from a dead local MCP server entry — harmless, Codex proceeds. Ignore; do not report as a failure. |
 | Codex missing / unauthenticated | Report and STOP. Do not implement the task yourself. |

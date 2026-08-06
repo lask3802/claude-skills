@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -9,13 +10,17 @@ import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 const DEFAULT_HEARTBEAT_MS = 30_000;
+const CANCEL_POLL_MS = 250;
 const SIGNAL_EXIT_CODE = { SIGHUP: 129, SIGINT: 130, SIGTERM: 143 };
 
 function usage() {
   return [
     "Usage:",
     "  node codex-jsonl-runner.mjs --prompt FILE --events FILE --telemetry FILE",
-    "    --stderr FILE [--heartbeat-ms N] -- codex exec ... --json",
+    "    --stderr FILE [--heartbeat-ms N]",
+    "    [--owner-file FILE --owner-token TOKEN --cancel-file FILE",
+    "    --terminal-file FILE --job-id ID]",
+    "    -- codex exec ... --json",
     "    --output-last-message FILE -",
   ].join("\n");
 }
@@ -36,9 +41,10 @@ function parseArgs(argv) {
   for (let index = 0; index < separator; index += 1) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if (["--prompt", "--events", "--telemetry", "--stderr"].includes(flag)) {
+    if (["--prompt", "--events", "--telemetry", "--stderr", "--owner-file", "--owner-token", "--cancel-file", "--terminal-file", "--job-id"].includes(flag)) {
       if (!value) throw new Error(`${flag} requires a path`);
-      options[flag.slice(2)] = value;
+      const key = flag.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      options[key] = value;
       index += 1;
       continue;
     }
@@ -59,6 +65,14 @@ function parseArgs(argv) {
 
   for (const key of ["prompt", "events", "telemetry", "stderr"])
     if (!options[key]) throw new Error(`missing required --${key}`);
+  if (Boolean(options.cancelFile) !== Boolean(options.jobId))
+    throw new Error("--cancel-file and --job-id must be provided together");
+  if (options.terminalFile && !options.jobId)
+    throw new Error("--terminal-file requires --job-id");
+  if (Boolean(options.ownerFile) !== Boolean(options.ownerToken)
+      || (options.ownerFile && !options.jobId)) {
+    throw new Error("--owner-file, --owner-token, and --job-id must be provided together");
+  }
 
   const command = argv.slice(separator + 1);
   if (command.length === 0) throw new Error("missing command after --");
@@ -122,7 +136,8 @@ export function resolveCommand(command, args) {
 }
 
 export function terminateProcessTree(child, signal = "SIGTERM") {
-  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return null;
+  if (!child?.pid || child.exitCode !== null || child.signalCode !== null)
+    return { timer: null, error: null };
 
   if (process.platform === "win32") {
     const taskkill = process.env.SystemRoot
@@ -135,8 +150,12 @@ export function terminateProcessTree(child, signal = "SIGTERM") {
     });
     if (result.error || result.status !== 0) {
       try { child.kill(); } catch { /* child already exited */ }
+      return {
+        timer: null,
+        error: new Error("taskkill could not verify termination of the Windows child tree"),
+      };
     }
-    return null;
+    return { timer: null, error: null };
   }
 
   try {
@@ -153,11 +172,36 @@ export function terminateProcessTree(child, signal = "SIGTERM") {
       }
     }
   }, 5_000);
-  return escalation;
+  return { timer: escalation, error: null };
 }
 
 function ensureParent(file) {
   fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+}
+
+function writeJsonAtomicExclusive(file, value) {
+  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+    encoding: "utf8",
+    flag: "wx",
+  });
+  const descriptor = fs.openSync(temporary, "r+");
+  try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
+  try {
+    try {
+      fs.linkSync(temporary, file);
+    } catch (error) {
+      if (!new Set(["EPERM", "ENOTSUP", "EXDEV"]).has(error.code)) throw error;
+      if (fs.existsSync(file)) throw new Error(`refusing to overwrite prior-run artifact: ${file}`);
+      fs.renameSync(temporary, file);
+    }
+    if (process.platform !== "win32") {
+      const directory = fs.openSync(path.dirname(path.resolve(file)), "r");
+      try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
+    }
+  } finally {
+    try { fs.unlinkSync(temporary); } catch { /* link succeeded or temp is already gone */ }
+  }
 }
 
 function comparablePath(file) {
@@ -169,16 +213,23 @@ function comparablePath(file) {
 function reserveOutputFiles(options) {
   for (const file of [options.events, options.telemetry, options.stderr, options.final])
     ensureParent(file);
+  if (options.cancelFile) ensureParent(options.cancelFile);
+  if (options.terminalFile) ensureParent(options.terminalFile);
 
-  const paths = [options.prompt, options.events, options.telemetry, options.stderr, options.final]
+  const files = [options.prompt, options.events, options.telemetry, options.stderr, options.final];
+  if (options.cancelFile) files.push(options.cancelFile);
+  if (options.terminalFile) files.push(options.terminalFile);
+  const paths = files
     .map(comparablePath);
   if (new Set(paths).size !== paths.length)
-    throw new Error("prompt, events, telemetry, stderr, and final-message files must all differ");
+    throw new Error("prompt, artifacts, and cancel-request files must all differ");
 
   for (const file of [options.events, options.telemetry, options.stderr, options.final]) {
     if (fs.existsSync(file))
       throw new Error(`refusing to overwrite prior-run artifact: ${file}`);
   }
+  if (options.terminalFile && fs.existsSync(options.terminalFile))
+    throw new Error(`refusing to overwrite prior-run artifact: ${options.terminalFile}`);
 
   const descriptors = [];
   try {
@@ -254,6 +305,16 @@ async function endStream(stream) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  if (options.ownerFile) {
+    ensureParent(options.ownerFile);
+    writeJsonAtomicExclusive(options.ownerFile, {
+      version: 1,
+      job_id: options.jobId,
+      owner_token: options.ownerToken,
+      runner_pid: process.pid,
+      started_at: new Date().toISOString(),
+    });
+  }
   fs.accessSync(options.prompt, fs.constants.R_OK);
   const promptBytes = fs.readFileSync(options.prompt);
   const [requestedExecutable, ...childArgs] = options.command;
@@ -266,11 +327,19 @@ async function main() {
   const startedAt = Date.now();
   let lastEventType = "none";
   let lastEventAt = startedAt;
+  let lastHeartbeatAt = startedAt;
+  let sawTurnCompleted = false;
+  let codexProtocolFailure = null;
   let spawnError = null;
   let stdinError = null;
   let fatalError = null;
   let forwardedSignal = null;
+  let cancelRequested = false;
+  let cancelCheckRunning = false;
+  let lastInvalidCancel = null;
+  let finalCommit = null;
   let terminationRequested = false;
+  let treeTerminationStarted = false;
   let escalationTimer = null;
   let progressTail = Promise.resolve();
   let telemetryTail = Promise.resolve();
@@ -286,6 +355,7 @@ async function main() {
       type,
       timestamp: new Date().toISOString(),
       elapsed_ms: Date.now() - startedAt,
+      ...(options.jobId ? { job_id: options.jobId } : {}),
       ...extra,
     });
     telemetryTail = telemetryTail.then(() => writeChunk(telemetryFile, `${record}\n`));
@@ -293,11 +363,17 @@ async function main() {
   };
   const announce = (type, detail = "", extra = {}) =>
     Promise.all([queueProgress(type, detail), queueTelemetry(type, extra)]);
+  const requestTreeTermination = (signal) => {
+    if (!child || treeTerminationStarted) return;
+    treeTerminationStarted = true;
+    const outcome = terminateProcessTree(child, signal);
+    escalationTimer = outcome.timer;
+    if (outcome.error) fatalError ||= outcome.error;
+  };
   const failRun = (error) => {
     if (!fatalError) fatalError = error instanceof Error ? error : new Error(String(error));
     terminationRequested = true;
-    if (child && !escalationTimer)
-      escalationTimer = terminateProcessTree(child, "SIGTERM");
+    requestTreeTermination("SIGTERM");
   };
   for (const stream of [eventsFile, telemetryFile, stderrFile])
     stream.on("error", failRun);
@@ -322,7 +398,7 @@ async function main() {
       terminationRequested = true;
       void announce("runner.signal", `${signal}; terminating child tree`, { signal })
         .catch(failRun);
-      if (!escalationTimer) escalationTimer = terminateProcessTree(child, signal);
+      requestTreeTermination(signal);
     };
     signalHandlers.set(signal, handler);
     process.on(signal, handler);
@@ -337,6 +413,8 @@ async function main() {
         telemetry: path.resolve(options.telemetry),
         stderr: path.resolve(options.stderr),
         final: path.resolve(options.final),
+        ...(options.terminalFile ? { terminal: path.resolve(options.terminalFile) } : {}),
+        ...(options.cancelFile ? { cancel: path.resolve(options.cancelFile) } : {}),
       },
     });
   } catch (error) {
@@ -366,6 +444,9 @@ async function main() {
       await writeChunk(eventsFile, `${line}\n`);
       lastEventType = event.type;
       lastEventAt = Date.now();
+      if (event.type === "turn.completed") sawTurnCompleted = true;
+      if (event.type === "turn.failed" || event.type === "error")
+        codexProtocolFailure = concise(event.error?.message || event.message || event);
       await queueProgress(lastEventType, eventDetail(event));
     }
   })();
@@ -373,21 +454,62 @@ async function main() {
   const capture = Promise.all([stderrCapture, eventsCapture]).catch((error) => {
     failRun(error);
   });
+  const checkCancellation = async () => {
+    if (cancelRequested || cancelCheckRunning || !options.cancelFile
+        || !fs.existsSync(options.cancelFile)) return;
+    cancelCheckRunning = true;
+    try {
+      let request;
+      try {
+        request = JSON.parse(fs.readFileSync(options.cancelFile, "utf8"));
+        if (request.job_id !== options.jobId)
+          throw new Error(`job_id does not match ${options.jobId}`);
+      } catch (error) {
+        const stat = fs.statSync(options.cancelFile);
+        const signature = `${stat.size}:${stat.mtimeMs}:${error.message}`;
+        if (signature !== lastInvalidCancel) {
+          lastInvalidCancel = signature;
+          await announce("runner.cancel.ignored", concise(error.message), {
+            error: error.message,
+          });
+        }
+        return;
+      }
+      cancelRequested = true;
+      terminationRequested = true;
+      await announce("runner.cancel.requested", "terminating child tree", {
+        requested_at: request.requested_at ?? null,
+      });
+      requestTreeTermination("SIGTERM");
+    } catch (error) {
+      failRun(error);
+    } finally {
+      cancelCheckRunning = false;
+    }
+  };
+  void checkCancellation();
+  const cancelPoll = options.cancelFile
+    ? setInterval(() => { void checkCancellation(); }, CANCEL_POLL_MS)
+    : null;
+  cancelPoll?.unref();
   const heartbeat = options.heartbeatMs > 0
     ? setInterval(() => {
-        const quietMs = Date.now() - lastEventAt;
-        if (quietMs < options.heartbeatMs) return;
+        const now = Date.now();
+        const quietMs = now - lastEventAt;
+        if (quietMs < options.heartbeatMs || now - lastHeartbeatAt < options.heartbeatMs) return;
+        lastHeartbeatAt = now;
         void announce(
           "heartbeat",
           `alive; last=${lastEventType}; quiet=${(quietMs / 1000).toFixed(1)}s`,
           { child_pid: child.pid ?? null, last_event: lastEventType, quiet_ms: quietMs },
         ).catch(failRun);
-      }, options.heartbeatMs)
+      }, Math.min(1_000, Math.max(25, Math.floor(options.heartbeatMs / 4))))
     : null;
   heartbeat?.unref();
 
   const result = await childResult;
   if (heartbeat) clearInterval(heartbeat);
+  if (cancelPoll) clearInterval(cancelPoll);
   for (const [signal, handler] of signalHandlers) process.removeListener(signal, handler);
   if (terminationRequested && process.platform !== "win32" && child.pid) {
     try { process.kill(-child.pid, "SIGKILL"); } catch { /* group already gone */ }
@@ -409,6 +531,7 @@ async function main() {
     if (forwardedSignal) return SIGNAL_EXIT_CODE[forwardedSignal] || 1;
     if (spawnError) return 127;
     if (fatalError) return 74;
+    if (cancelRequested) return 130;
     if (Number.isInteger(result.code)) return result.code;
     return result.signal ? (SIGNAL_EXIT_CODE[result.signal] || 1) : 1;
   };
@@ -417,20 +540,37 @@ async function main() {
     fatalError = stdinError;
     exitCode = 74;
   }
+  if (exitCode === 0 && (codexProtocolFailure || !sawTurnCompleted)) {
+    fatalError = new Error(codexProtocolFailure
+      ? `Codex JSONL reported failure: ${codexProtocolFailure}`
+      : "Codex exited zero without a turn.completed event");
+    exitCode = calculateExitCode();
+  }
   if (exitCode === 0) {
     const finalStat = fs.existsSync(options.final) ? fs.statSync(options.final) : null;
     if (!finalStat?.isFile() || finalStat.size === 0) {
       fatalError = new Error(`Codex exited zero without a non-empty final-message artifact: ${options.final}`);
       exitCode = 66;
+    } else {
+      const finalDescriptor = fs.openSync(options.final, "r+");
+      try { fs.fsyncSync(finalDescriptor); } finally { fs.closeSync(finalDescriptor); }
+      const finalBytes = fs.readFileSync(options.final);
+      finalCommit = {
+        size: finalBytes.length,
+        sha256: createHash("sha256").update(finalBytes).digest("hex"),
+      };
     }
   }
 
-  const completionType = exitCode === 0 ? "runner.completed" : "runner.failed";
+  const completionTypeFor = (code) => cancelRequested && code === 130
+    ? "runner.cancelled"
+    : code === 0 ? "runner.completed" : "runner.failed";
+  const completionType = completionTypeFor(exitCode);
   const detail = `exit=${exitCode}${result.signal ? `; signal=${result.signal}` : ""}`;
   try {
     await announce(completionType, detail, {
       exit_code: exitCode,
-      signal: result.signal || forwardedSignal,
+      signal: result.signal || forwardedSignal || (cancelRequested ? "cancel-request" : null),
       error: fatalError?.message || spawnError?.message || null,
     });
     await Promise.all([progressTail, telemetryTail]);
@@ -448,6 +588,23 @@ async function main() {
     fatalError ||= error;
     exitCode = calculateExitCode();
   }
+  if (options.terminalFile) {
+    try {
+      writeJsonAtomicExclusive(options.terminalFile, {
+        version: 1,
+        job_id: options.jobId,
+        type: completionTypeFor(exitCode),
+        timestamp: new Date().toISOString(),
+        exit_code: exitCode,
+        signal: result.signal || forwardedSignal || (cancelRequested ? "cancel-request" : null),
+        error: fatalError?.message || spawnError?.message || null,
+        ...(completionTypeFor(exitCode) === "runner.completed" ? { final: finalCommit } : {}),
+      });
+    } catch (error) {
+      fatalError ||= error;
+      exitCode = calculateExitCode();
+    }
+  }
   if (fatalError)
     process.stderr.write(`[codex runner] ${fatalError.message}\n`);
   else if (spawnError)
@@ -459,6 +616,21 @@ const invokedAsScript = process.argv[1]
   && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 if (invokedAsScript) {
   main().catch((error) => {
+    try {
+      const options = parseArgs(process.argv.slice(2));
+      if (options.terminalFile && options.jobId && !fs.existsSync(options.terminalFile)) {
+        ensureParent(options.terminalFile);
+        writeJsonAtomicExclusive(options.terminalFile, {
+          version: 1,
+          job_id: options.jobId,
+          type: "runner.failed",
+          timestamp: new Date().toISOString(),
+          exit_code: 2,
+          signal: null,
+          error: error.message,
+        });
+      }
+    } catch { /* the original bootstrap error remains authoritative */ }
     process.stderr.write(`[codex runner] ${error.message}\n`);
     process.exitCode = 2;
   });
