@@ -62,20 +62,34 @@ write files, `read-only` for review/analysis/second-opinion.
    dispatch + table):
 
    ```bash
-   codex exec -m <model> -c model_reasoning_effort="<effort>" \
-     --sandbox <workspace-write|read-only> \
-     --skip-git-repo-check --color never --cd "<workspace>" \
-     --output-last-message "<tmp>/codex-run-last.md" - < "<tmp>/codex-run-prompt.md"
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-jsonl-runner.mjs" \
+     --prompt "<tmp>/codex-run-prompt.md" \
+     --events "<tmp>/codex-run-attempt1-events.jsonl" \
+     --telemetry "<tmp>/codex-run-attempt1-telemetry.jsonl" \
+     --stderr "<tmp>/codex-run-attempt1-stderr.log" \
+     -- codex exec -m <model> -c model_reasoning_effort="<effort>" \
+       --sandbox <workspace-write|read-only> \
+       --skip-git-repo-check --color never --cd "<workspace>" --json \
+       --output-last-message "<tmp>/codex-run-attempt1-last.md" -
    ```
 
    - Effort `high`/`xhigh` on a real task can run 20–60+ minutes: run it in the
-     BACKGROUND (Bash `run_in_background: true`) and wait for completion. Never
-     give it a default 2-minute timeout — that kills it mid-flight.
+     BACKGROUND (Bash `run_in_background: true`). The runner prints concise
+     JSONL activity. Its separate telemetry JSONL records runner/child PIDs and
+     quiet-period heartbeats; poll it or the event JSONL instead of waiting blind. Never give it a
+     default 2-minute timeout — that kills it mid-flight.
+   - The JSONL event file proves activity, not success. Completion requires a
+     zero runner exit plus the attempt1 final artifact. Stderr stays in its own log.
    - Never add `--dangerously-bypass-approvals-and-sandbox` or any
      `--dangerously-*` flag. `workspace-write` is the maximum elevation.
 
 3. **Collect the result:**
-   - Read `<tmp>/codex-run-last.md` — this is Codex's own final message.
+   - Read `<tmp>/codex-run-attempt1-last.md` — this is Codex's own final message.
+   - Preserve the attempt1 events, telemetry, and stderr artifacts for
+     progress diagnosis. If the parent Bash call times out, inspect these plus
+     the background process before retrying; the original child may still finish.
+     The runner refuses to overwrite them, so a confirmed retry changes every
+     output filename from `attempt1` to `attempt2` while keeping Codex flags identical.
    - Write mode: run `git status` + `git diff --stat` in the workspace and list
      what actually changed. If nothing changed but the message claims success,
      say exactly that.
@@ -96,10 +110,11 @@ write files, `read-only` for review/analysis/second-opinion.
 
 | Symptom | Action |
 |---|---|
-| `turn.failed`: "Selected model is at capacity" | Server-side, TRANSIENT — can hit after substantial work. ONE retry with identical flags; report the lost attempt. |
+| `turn.failed`: "Selected model is at capacity" | Server-side, TRANSIENT — can hit after substantial work. ONE retry with identical Codex flags and fresh `attempt2` artifacts; report the lost attempt. |
 | `400 unsupported_value` on `reasoning.effort` | You picked a ❌ cell (or the menu changed). Use the dispatched/default ✅ cell; if the dispatch itself named the bad cell, report back instead of guessing. |
 | `400` "model not supported" | Plan-gating. Report verbatim and STOP. NEVER silently substitute another model — that is a user/director decision. |
-| Timeout/crash/truncated output | ONE retry with identical flags, then report honestly. |
+| Parent Bash timeout | Inspect the background process plus events/final artifacts. Do not retry while the original child may still be alive. |
+| Confirmed child crash/truncated output | ONE retry with identical Codex flags and fresh artifact paths, then report honestly. |
 | stderr: `rmcp::transport ... http://127.0.0.1:8080/mcp` errors | Known noise from a dead local MCP server entry — harmless, Codex proceeds. Ignore; do not report as a failure. |
 | Codex missing / unauthenticated | Report and STOP. Do not implement the task yourself. |
 

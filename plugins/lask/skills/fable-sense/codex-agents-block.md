@@ -39,12 +39,19 @@ verification, not a bigger model.
    NOT shell out to `claude -p`; measured in production it fails or times
    out on nearly every run inside Codex sessions. Write the review prompt
    to a file and pipe it via stdin (never as a shell arg — codex hangs on
-   an open stdin):
-   `codex exec --sandbox read-only --skip-git-repo-check --color never --cd "<workspace>" --output-last-message "<out.md>" - < review-prompt.md`
+   an open stdin). Stream progress while preserving the final artifact.
+   Bash (not plain `/bin/sh`):
+   `set -o pipefail; for f in review-attempt1-events.jsonl review-attempt1-stderr.log "<out-attempt1.md>"; do if [ -e "$f" ] || [ -L "$f" ]; then echo "refusing to overwrite $f" >&2; exit 73; fi; done; codex exec --sandbox read-only --skip-git-repo-check --color never --cd "<workspace>" --json --output-last-message "<out-attempt1.md>" - < review-prompt.md 2> review-attempt1-stderr.log | tee review-attempt1-events.jsonl && test -s "<out-attempt1.md>"`
+   PowerShell 7+ (not Windows PowerShell 5.1):
+   `$ErrorActionPreference='Stop'; $PSNativeCommandUseErrorActionPreference=$false; $OutputEncoding=[Text.UTF8Encoding]::new($false); [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $artifacts=@('review-attempt1-events.jsonl','review-attempt1-stderr.log','<out-attempt1.md>'); foreach($artifact in $artifacts){if(Test-Path -LiteralPath $artifact){throw "refusing to overwrite $artifact"}}; Get-Content -Raw -Encoding utf8 review-prompt.md | & codex exec --sandbox read-only --skip-git-repo-check --color never --cd "<workspace>" --json --output-last-message "<out-attempt1.md>" - 2> review-attempt1-stderr.log | Tee-Object -FilePath review-attempt1-events.jsonl; $codexExit=$LASTEXITCODE; if ($null -eq $codexExit) { exit 127 }; if ($codexExit -ne 0) { exit $codexExit }; if(-not (Test-Path -LiteralPath '<out-attempt1.md>' -PathType Leaf) -or (Get-Item -LiteralPath '<out-attempt1.md>').Length -eq 0){exit 66}; Get-Content -Encoding utf8 review-attempt1-events.jsonl | ForEach-Object { $_ | ConvertFrom-Json -ErrorAction Stop | Out-Null }`
    The prompt must say: try to refute; report what is missing, not only
    what is wrong; findings as file:line — and carry only the artifact,
-   never your own conclusions about it. Allow a generous timeout
-   (≥10 minutes) and read the review from the output file. If the pass
-   cannot run or complete, skip it and disclose that in your deliverable
-   instead of blocking on it.
+   never your own conclusions about it. Keep stderr separate so the JSONL
+   file remains parseable. Both recipes refuse existing attempt artifacts and
+   require a fresh non-empty final message. Allow a generous timeout (≥10 minutes); events
+   show activity, but only a zero exit plus the output file prove completion.
+   On parent timeout, check the child process and artifacts before retrying;
+   the child may still finish. Use fresh `attempt2` output names for a confirmed
+   retry so prior evidence is not overwritten. If the pass cannot run or complete, skip it
+   and disclose that in your deliverable instead of blocking on it.
 <!-- END FABLE-SENSE -->

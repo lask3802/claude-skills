@@ -43,6 +43,16 @@ direction): cross-model diversity is traded away for a guard that actually
 completes, and fresh context + adversarial framing is where the protocol's
 measured leverage sits.
 
+2026-08-06 — all Claude-side Codex entrypoints now use the plugin's
+`codex-jsonl-runner.mjs`: `codex exec --json` events are saved as pure JSONL,
+stderr is separate, and concise progress is printed live. A second telemetry
+JSONL records PIDs plus 30-second quiet-period heartbeats, so it can be polled
+even when the outer UI buffers stdout. The final response remains a separate
+`--output-last-message` artifact, and attempt artifacts are never overwritten.
+The Codex/AGENTS copy cannot depend on the
+Claude plugin path, so it ships a self-contained `--json | tee` recipe with
+pipe-failure preservation instead.
+
 **Why Codex needs BOTH the skill and the AGENTS.md block** (measured
 2026-07-06): `codex exec` injects the skill roster into every session and
 named invocation reliably loads the skill — but description-based

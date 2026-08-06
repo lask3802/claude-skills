@@ -41,8 +41,8 @@ plugin 內的兩塊東西現在可以獨立開關：
 | `/lask:handoff` | 產生一份自足、可直接複製的「交接文件」（目標、檔案+行號、關鍵發現、決策、現況、下一步），整則訊息就是文件，用 `/copy` 貼到新 session 或交給其他 agent。支援 `/lask:handoff <focus>` 聚焦、`/lask:handoff --file` 另存 HANDOFF.md。 |
 | `/lask:director` | Director-mode 完整 rubric：操作迴圈、派遣 prompt 四件套、執行者模型與驗證強度的情境校準表、跨模型 second-opinion 裁決守則。 |
 | `/lask:delegation-playbooks` | 五大場景（feature／bugfix／research／refactor／review）的標準派遣迴圈、現成 dispatch prompt 與升級點。 |
-| `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|terra\|luna] [--effort none\|low\|medium\|high\|xhigh] [--sandbox write\|read] <任務>`（省略即用預設 sol×xhigh×write）：實測驗證的 model×effort 呼叫表（`gpt-5.6-sol/terra/luna` × `none/low/medium/high/xhigh`；`minimal` 三模型皆 400）、stdin 提示、背景執行規則、last-message 回收、四段固定回報格式（Codex 回報／實際變更／執行參數／異常）與故障對照表（capacity=暫時性重試一次、model not supported=停手不換模、MCP 噪音=忽略）。全程機械化——sonnet／haiku 執行者可照表操課，結果忠實轉述給 user／director。 |
-| `/lask:fable-sense` | 高難度／模糊／高風險任務的「條件工程」紀律：任務書（brief）模板、新鮮派發、調查式措辭（絕不把猜測嵌進派發）、執行證據、對抗式尾部防護（Claude 端派 codex exec 跨模型互查；Codex 端改開新的 codex exec 新鮮上下文自查——claude -p 已除役，實測在 Codex session 內幾乎必失敗；≥10 分鐘 timeout）。實證基礎：19 次預先登錄評測全數達標（Opus 4.8＋Codex gpt-5.5），證明拉開差距的是條件而非模型智力；附凍結的 `eval/` 供模型更新後重驗。Codex 端雙軌手動安裝：`SKILL.md` 複製到 `~/.codex/skills/fable-sense/`（同 agentskills.io 規格，供點名調用），`codex-agents-block.md` 裝進 `~/.codex/AGENTS.md`（常駐觸發——實測描述式自動觸發不可靠，區塊不可省）。機械性任務自動跳過。 |
+| `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|terra\|luna] [--effort none\|low\|medium\|high\|xhigh] [--sandbox write\|read] <任務>`。內建 JSONL runner：即時摘要 Codex events；純 event artifact、可輪詢的 PID＋quiet-heartbeat telemetry、獨立 stderr／final-message、真實 exit code；並拒絕覆寫前一次證據。高／xhigh 可背景執行而不再盲等。 |
+| `/lask:fable-sense` | 高難度／模糊／高風險任務的「條件工程」紀律：任務書、新鮮派發、調查式措辭、執行證據與對抗式尾部防護。Claude 端的 Codex refuter 走 JSONL runner＋heartbeat；Codex／AGENTS 可攜版走 `--json | tee` 並保留 pipeline failure。兩者都保留 final artifact、分開 stderr，且 parent timeout 後先查 child／artifact 才能重試。既有 19 次預先登錄評測、Codex 雙軌手動安裝與機械任務 skip-gate 維持不變。 |
 
 ## Director mode（安裝即生效）
 
@@ -58,8 +58,8 @@ plugin 內的兩塊東西現在可以獨立開關：
 | `lask:debugger` | opus | 系統性根因調查；證據鏈 path:line 錨定；未授權不修 |
 | `lask:verifier` | opus | 驗收官：逐條驗 acceptance criteria，只回報事實、絕不動手修 |
 | `lask:reviewer` | opus | 初審：正確性→風險→可維護性，severity 分級 findings |
-| `lask:second-opinion` | sonnet | 跨模型第三方審查：唯讀沙箱跑 Codex CLI 並忠實轉述，採納與否由 director 逐條裁決 |
-| `lask:codex-implementer` | sonnet | 透過 Codex CLI（gpt-5.6-sol，xhigh）建置比 opus 高一階的實作（更深的多步推理，但還不到 fable）；薄監督層，重推理在 Codex 端。跑前後各查一次 5h／週配額，任一視窗剩餘 <20% 即於報告頂端 ⚠️ 警告；sol 若回 400「model not supported」則誠實回報並停手，不擅自換模型 |
+| `lask:second-opinion` | sonnet | 跨模型第三方審查：唯讀沙箱跑 Codex CLI，以 event＋telemetry JSONL 顯示過程並忠實轉述，採納與否由 director 逐條裁決 |
+| `lask:codex-implementer` | sonnet | 透過 Codex CLI（gpt-5.6-sol，xhigh）建置比 opus 高一階的實作；runner 提供活動、PID／heartbeat telemetry、stderr／final artifacts 與正確 exit code。跑前後各查一次 5h／週配額，任一視窗剩餘 <20% 即於報告頂端 ⚠️ 警告；sol 若回 400 則停手、不擅自換模型 |
 
 所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes（僅 implementer/debugger）／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
 
@@ -78,7 +78,7 @@ plugin 內的兩塊東西現在可以獨立開關：
 ```
 node plugins/lask/hooks/scripts/tier.test.js      # model-tiering hook 行為測試
 node plugins/lask/hooks/scripts/enforce.test.js   # director-enforce hook 行為測試（12 案）
-node --test plugins/lask/tests/content.test.mjs plugins/lask/tests/e2e.test.mjs   # 內容不變量（roster／skills／hooks／README）
+node --test plugins/lask/tests/codex-jsonl-runner.test.mjs plugins/lask/tests/content.test.mjs plugins/lask/tests/e2e.test.mjs   # runner 行為＋內容不變量
 LASK_E2E=1 node --test plugins/lask/tests/e2e.test.mjs                            # headless E2E（燒 token；--plugin-dir 載入 repo 工作副本）
 LASK_E2E=1 LASK_E2E_DISPATCH=1 node --test plugins/lask/tests/e2e.test.mjs        # 另含 lask:scout 實地派遣 sentinel 驗證（雙重 gate）
 LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/e2e.test.mjs      # 安裝後 smoke（驗 user-scope 安裝）
@@ -124,12 +124,15 @@ plugins/
         tier.test.js        # model-tiering hook 行為測試
         enforce.test.js     # director-enforce hook 行為測試
     agents/                 # 八人編制（scout/researcher/implementer/debugger/verifier/reviewer/second-opinion/codex-implementer）
+    scripts/
+      codex-jsonl-runner.mjs # Codex events＋telemetry JSONL／artifact／process-tree runner
     skills/
       director/             # 核心 rubric
       delegation-playbooks/ # 五場景打法
       fable-sense/          # 硬任務條件工程（含 codex adapter 與凍結 eval）
       handoff/
     tests/
+      codex-jsonl-runner.test.mjs # streaming／telemetry／artifact／process-tree tests
       content.test.mjs      # 內容不變量
       e2e.test.mjs          # LASK_E2E=1 headless 驗證
 README.md

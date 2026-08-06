@@ -76,12 +76,19 @@ test("read-only agents forbid mutation and the builder/grader split holds", () =
 
 test("second-opinion embeds the verified codex recipe and the no-substitute rule", () => {
   const src = read("agents/second-opinion.md");
+  assert.match(src, /codex-jsonl-runner\.mjs/, "must use the observable runner");
   assert.match(src, /codex exec --sandbox read-only --skip-git-repo-check --color never/);
+  assert.match(src, /--json/, "must request live JSONL events");
+  assert.match(src, /codex-second-opinion-attempt1-events\.jsonl/, "must preserve the event stream");
+  assert.match(src, /codex-second-opinion-attempt1-telemetry\.jsonl/, "must persist pollable heartbeats and PIDs");
+  assert.match(src, /codex-second-opinion-attempt1-stderr\.log/, "must keep stderr out of JSONL");
+  assert.match(src, /--telemetry/, "runner must receive a telemetry artifact");
   assert.match(src, /--output-last-message/);
-  assert.match(src, /- < "/, "prompt must travel via stdin redirection, not a shell argument");
+  assert.match(src, /--prompt/, "runner must pipe the prompt file to stdin");
   assert.match(src, /never as a shell argument/i);
   assert.match(src, /never substitute/i);
   assert.match(src, /no adoption decisions/i);
+  assert.match(src, /heartbeat/i, "must explain quiet-period liveness");
 });
 
 test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () => {
@@ -89,8 +96,14 @@ test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () 
   assert.match(src, /codex exec -m gpt-5\.6-sol/, "must pin the model");
   assert.match(src, /model_reasoning_effort="xhigh"/, "must default to xhigh effort");
   assert.match(src, /--sandbox workspace-write/, "write mode is the whole point");
+  assert.match(src, /codex-jsonl-runner\.mjs/, "must use the observable runner");
+  assert.match(src, /--json/, "must request live JSONL events");
+  assert.match(src, /codex-impl-attempt1-events\.jsonl/, "must preserve the event stream");
+  assert.match(src, /codex-impl-attempt1-telemetry\.jsonl/, "must persist pollable heartbeats and PIDs");
+  assert.match(src, /codex-impl-attempt1-stderr\.log/, "must keep stderr out of JSONL");
+  assert.match(src, /--telemetry/, "runner must receive a telemetry artifact");
   assert.match(src, /--output-last-message/);
-  assert.match(src, /- < "/, "prompt must travel via stdin redirection, not a shell argument");
+  assert.match(src, /--prompt/, "runner must pipe the prompt file to stdin");
   assert.match(src, /never as a shell argument/i);
   assert.match(src, /run_in_background/i, "must run long xhigh sessions in the background");
   assert.match(src, /resets_at/, "rate-limit reader must key off the real resets_at field");
@@ -127,7 +140,13 @@ test("codex-run skill ships the verified model×effort table and the mechanical 
     assert.match(body, new RegExp(m.replace(/\./g, "\\.")), `table must list ${m}`);
   }
   assert.match(body, /minimal.*(400|unsupported)/is, "must document that minimal is rejected by all three models");
-  assert.match(body, /- < "/, "prompt must travel via stdin redirection");
+  assert.match(body, /codex-jsonl-runner\.mjs/, "must use the observable runner");
+  assert.match(body, /--prompt/, "runner must pipe the prompt file to stdin");
+  assert.match(body, /--json/, "must request live JSONL events");
+  assert.match(body, /codex-run-attempt1-events\.jsonl/, "must preserve the event stream");
+  assert.match(body, /codex-run-attempt1-telemetry\.jsonl/, "must persist pollable heartbeats and PIDs");
+  assert.match(body, /codex-run-attempt1-stderr\.log/, "must keep stderr out of JSONL");
+  assert.match(body, /--telemetry/, "runner must receive a telemetry artifact");
   assert.match(body, /run_in_background/i, "must run high/xhigh sessions in the background");
   assert.match(body, /--output-last-message/);
   assert.match(body, /Never add `--dangerously-bypass/i, "the dangerous bypass flag must appear only as a prohibition");
@@ -174,6 +193,7 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
   for (const field of ["TASK:", "REAL GOAL:", "DELIVERABLE:", "STAKES:", "CONSTRAINTS:", "EVIDENCE FIRST:"])
     assert.match(body, new RegExp(field), `brief template must include ${field}`);
   assert.match(body, /codex exec --sandbox read-only/, "Claude->Codex tail guard must embed the verified recipe");
+  assert.match(body, /codex-jsonl-runner\.mjs/, "Claude-side tail guard must use the observable runner");
   assert.match(body, /do NOT shell out to `claude -p`/, "Codex-side tail guard must prohibit claude -p (retired: fails/times out in Codex sessions)");
   assert.match(body, /10 minutes/, "must carry the measured timeout guidance");
   assert.match(body, /Skip this skill entirely/, "quick reference must keep the mechanical-task skip row");
@@ -184,7 +204,24 @@ test("fable-sense ships the conditions discipline with its evidence and adapters
   for (const src of [body, block]) {
     assert.doesNotMatch(src, /--output-format stream-json/, "retired Codex->Claude streaming recipe must be gone");
     assert.match(src, /--output-last-message/, "tail guard must collect the review from the output-last-message file");
+    assert.match(src, /--json/, "tail guard must stream Codex events as JSONL");
+    assert.match(src, /\.jsonl/, "tail guard must preserve a JSONL event artifact");
   }
+  assert.match(body, /heartbeat/i, "Claude-side runner must surface quiet-period liveness");
+  assert.match(block, /set -o pipefail/, "portable Codex block must preserve codex failures through tee");
+  assert.match(block, /tee/, "portable Codex block must show and save live events");
+  assert.match(block, /review-attempt1-stderr\.log/, "portable commands must preserve stderr separately");
+  assert.match(block, /\$LASTEXITCODE/, "PowerShell pipeline must propagate Codex failure through Tee-Object");
+  assert.match(block, /PowerShell 7\+/, "portable recipe must reject Windows PowerShell 5.1 transcoding semantics");
+  assert.match(block, /ErrorActionPreference='Stop'/, "PowerShell pipeline must fail when Tee-Object cannot write");
+  assert.match(block, /\[Console\]::OutputEncoding/, "headless PowerShell must explicitly encode native stdin as UTF-8");
+  assert.match(block, /ConvertFrom-Json/, "PowerShell pipeline must validate the saved JSONL after completion");
+  assert.match(block, /Bash \(not plain/, "pipefail recipe must not be advertised as POSIX sh");
+  assert.match(block, /\[ -e "\$f" \].*\[ -L "\$f" \]/, "Bash recipe must refuse existing files and symlinks");
+  assert.match(block, /test -s/, "Bash recipe must require a fresh non-empty final message");
+  assert.match(block, /Test-Path -LiteralPath \$artifact/, "PowerShell recipe must refuse existing attempt artifacts");
+  assert.match(block, /PathType Leaf/, "PowerShell recipe must require a fresh final-message file");
+  assert.doesNotMatch(block, /2>&1/, "stderr must not corrupt the JSONL event file");
   assert.match(block, /codex exec --sandbox read-only/, "codex block tail guard must run a fresh codex exec");
   assert.match(block, /do\s+NOT shell out to `claude -p`/i, "codex block must carry the claude -p prohibition");
   assert.match(block, /BEGIN FABLE-SENSE/, "codex block must be marker-delimited for clean install/uninstall");
@@ -208,12 +245,29 @@ test("director-context.js source carries the policy tag and full roster", () => 
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", "tier-context.js")), "old context script must be gone");
 });
 
-test("plugin.json is 1.7.0 and describes director mode and fable-sense", () => {
+test("plugin.json is 1.7.1 and describes director mode and fable-sense", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "1.7.0");
+  assert.equal(pkg.version, "1.7.1");
   assert.match(pkg.description, /director/i);
   assert.match(pkg.description, /fable-sense/);
+});
+
+test("codex JSONL runner is cross-platform, observable, and exit-code safe", () => {
+  const rel = "scripts/codex-jsonl-runner.mjs";
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, rel)), "runner script must ship with the plugin");
+  const src = read(rel);
+  assert.match(src, /spawn\(/, "runner must launch Codex without a shell pipeline");
+  assert.match(src, /shell:\s*false/, "shell interpolation must stay disabled");
+  assert.match(src, /heartbeat/i, "runner must emit liveness heartbeats");
+  assert.match(src, /JSON\.parse/, "runner must understand and summarize JSONL events");
+  assert.match(src, /process\.exitCode/, "runner must propagate the Codex exit code");
+  assert.match(src, /codex-win32-/, "runner must resolve the native Windows package");
+  assert.match(src, /taskkill\.exe/, "Windows cancellation must terminate the full process tree");
+  assert.match(src, /detached:\s*process\.platform !== "win32"/, "POSIX cancellation must own a process group");
+  assert.match(src, /invalid Codex JSONL stdout/, "runner must fail closed on malformed child stdout");
+  assert.match(src, /fs\.openSync\(file, "wx"\)/, "runner must refuse to overwrite earlier attempt evidence");
+  assert.match(src, /--output-last-message/, "runner must require the final response artifact");
 });
 
 test("hooks.json wires the three hooks to existing scripts", () => {
@@ -265,6 +319,7 @@ test("README documents the roster, the skills, and all three test commands", () 
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/tier\.test\.js/);
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/enforce\.test\.js/, "README must list the enforce.test.js command");
   assert.match(readme, /node --test plugins\/lask\/tests\//);
+  assert.match(readme, /codex-jsonl-runner\.test\.mjs/, "README standard suite must run the behavioral runner tests");
   assert.match(readme, /LASK_E2E=1/);
   assert.match(readme, /director-enforce/, "README must document the enforcement hook");
   assert.match(readme, /hands-on/i, "README must document the hands-on escape hatch");

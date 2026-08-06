@@ -87,22 +87,37 @@ the finished artifact. From a Claude session, use the *other* model family
 out on nearly every run inside Codex sessions (ConnectionRefused, 10-minute
 silent hangs), and fresh context is what the guard buys anyway:
 
+From the Claude plugin, use its observable runner (never pass the prompt as a
+shell argument):
+
 ```bash
-# Either direction — write the prompt to a file, pipe via stdin
-# (never pass it as a shell arg; codex hangs on an open stdin):
-codex exec --sandbox read-only --skip-git-repo-check --color never \
-  --cd "<workspace>" --output-last-message "<out.md>" - < review-prompt.md
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-jsonl-runner.mjs" \
+  --prompt review-prompt.md --events review-attempt1-events.jsonl \
+  --telemetry review-attempt1-telemetry.jsonl \
+  --stderr review-attempt1-stderr.log -- \
+  codex exec --sandbox read-only --skip-git-repo-check --color never \
+    --cd "<workspace>" --json --output-last-message "<out-attempt1.md>" -
 ```
+
+When this skill is copied into Codex, `${CLAUDE_PLUGIN_ROOT}` is unavailable.
+Use the self-contained Bash or PowerShell 7+ pipeline from
+`codex-agents-block.md` instead.
 
 Review prompt must say: *try to refute; report what's missing, not only
 what's wrong; anchor findings to file:line* — and carry only the artifact,
 never your own reasoning about it (a refuter anchored on your conclusions
 inherits your blind spots).
 
-Give the pass a generous timeout (≥10 minutes) and read the review from the
-`--output-last-message` file. If it can't run or complete, say so in the
-deliverable rather than skipping silently (as validated: the Codex run
-disclosed its timed-out attempt).
+The Claude runner writes pure event JSONL, keeps stderr separate, prints activity,
+and writes PIDs plus quiet-period heartbeats to a telemetry JSONL. The portable
+pipelines show/save raw events, refuse prior attempt artifacts, and require a
+fresh non-empty final message; keep stderr separate from stdout. Events prove liveness,
+not completion: require a zero exit and read the `--output-last-message` file.
+Give the pass a generous timeout (≥10 minutes). If the parent command times out,
+check the child process and attempt artifacts before retrying — an earlier run may
+still finish after its parent timeout. The runner refuses overwrites; any confirmed
+retry must use fresh `attempt2` artifact names. If it can't run or complete, say so in
+the deliverable rather than skipping silently.
 
 ## Quick reference
 

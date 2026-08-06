@@ -11,7 +11,7 @@ You receive the standard dispatch (goal, scope, constraints, acceptance criteria
 
 ## Rate-limit protocol (run BEFORE and AFTER the Codex session)
 
-There is no Codex subcommand for rate limits. The data rides on `token_count` events written to the rollout logs under `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, in `payload.rate_limits`: `primary` is the ~5-hour window, `secondary` the ~weekly window; each carries `used_percent` and (on this CLI) `resets_at` (epoch seconds). Remaining % = 100 − used_percent; warn when remaining < 20 (i.e. used_percent > 80). The live `codex exec --json` stream on 0.144.0 does NOT carry rate_limits (it emits only thread/turn/item events), so BOTH the before-check and the after-check read the rollout files. A completed Codex session writes a fresh snapshot to its own rollout, so the after-check re-scan reflects the run you just made.
+There is no Codex subcommand for rate limits. The data rides on `token_count` events written to the rollout logs under `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, in `payload.rate_limits`: `primary` is the ~5-hour window, `secondary` the ~weekly window; each carries `used_percent` and (on this CLI) `resets_at` (epoch seconds). Remaining % = 100 − used_percent; warn when remaining < 20 (i.e. used_percent > 80). The live `codex exec --json` stream on 0.146.0 does NOT carry rate_limits (it emits thread/turn/item/error activity events), so BOTH the before-check and the after-check read the rollout files. A completed Codex session writes a fresh snapshot to its own rollout, so the after-check re-scan reflects the run you just made.
 
 Read the snapshot with this self-contained Node script (Node only — no jq, no plugin paths). Write it to your temp dir via Bash and run it:
 
@@ -64,16 +64,23 @@ Handling the result:
 
 ## Invocation — exactly ONE Codex write session per dispatch
 
-Compose a prompt file containing the dispatched goal / scope / constraints / acceptance criteria, plus standing instructions to Codex: implement exactly to scope, match the surrounding code style, self-test, and summarize every file changed. Pass it via stdin (never as a shell argument — quotes/backticks/`$()` in an argument can corrupt the command) and always redirect stdin so Codex cannot hang waiting for input.
+Compose a prompt file containing the dispatched goal / scope / constraints / acceptance criteria, plus standing instructions to Codex: implement exactly to scope, match the surrounding code style, self-test, and summarize every file changed. The runner opens that file and pipes it via stdin; the prompt goes by stdin only, never as a shell argument (quotes/backticks/`$()` in an argument can corrupt the command).
 
 ```bash
-codex exec -m gpt-5.6-sol -c model_reasoning_effort="xhigh" --sandbox workspace-write \
-  --skip-git-repo-check --color never --cd "<workspace dir>" \
-  --output-last-message "$TMP/codex-impl-last.md" - < "$TMP/codex-impl-prompt.md"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-jsonl-runner.mjs" \
+  --prompt "$TMP/codex-impl-prompt.md" \
+  --events "$TMP/codex-impl-attempt1-events.jsonl" \
+  --telemetry "$TMP/codex-impl-attempt1-telemetry.jsonl" \
+  --stderr "$TMP/codex-impl-attempt1-stderr.log" \
+  -- codex exec -m gpt-5.6-sol -c model_reasoning_effort="xhigh" \
+    --sandbox workspace-write --skip-git-repo-check --color never \
+    --cd "<workspace dir>" --json \
+    --output-last-message "$TMP/codex-impl-attempt1-last.md" -
 ```
 
 - Default reasoning effort is `xhigh`. If the dispatch explicitly names another (e.g. `max`), pass that instead.
-- Complex `xhigh` runs can exceed the Bash tool's 10-minute foreground ceiling. Run Codex in the BACKGROUND (Bash `run_in_background: true`), wait for it to finish, then read `$TMP/codex-impl-last.md` for Codex's own summary.
+- The runner preserves raw Codex JSONL, separates stderr, prints concise activity, and writes 30-second quiet-period heartbeats plus runner/child PIDs to the telemetry JSONL. Complex `xhigh` runs can exceed the Bash tool's 10-minute foreground ceiling: run the runner in the BACKGROUND (`run_in_background: true`) and poll its output, events, or telemetry artifact instead of waiting blind.
+- A parent timeout is not proof that the child stopped. Before retrying, check the background job/process, attempt1 telemetry/events, and final artifact; retry only after the original is confirmed dead or completed. The runner refuses to overwrite evidence: change every `attempt1` output path to `attempt2` for the one allowed retry.
 - Never add `--dangerously-bypass-approvals-and-sandbox` or any other `--dangerously-*` flag. `workspace-write` is the only elevation.
 
 ### Hard-task conditioning (optional, dispatch-driven)
@@ -111,7 +118,7 @@ Codex's self-report is a claim, not proof. After it finishes, YOU enumerate and 
 
 ## Failure policy
 
-- Transient failure (timeout, crash, truncated output): ONE retry with the same flags.
+- Transient failure (confirmed child exit, crash, truncated output): ONE retry with the same Codex flags but fresh `attempt2` artifact paths. A parent-tool timeout alone is not a retry signal; first prove the original child stopped so two writers do not race in the workspace.
 - `turn.failed` with "Selected model is at capacity" is server-side and TRANSIENT — it can land after substantial work (observed 2026-07: 28 minutes in, 4/6 todos done). Treat it as the retry case above, and note the lost attempt's rough token cost in the report (the rollout file still records `total_token_usage` even for failed turns; the live `--json` stream carries usage only on `turn.completed`).
 - If Codex returns the "model not supported" 400 for `gpt-5.6-sol` (a known plan-gating issue): report it honestly under Verdict and STOP. Never silently substitute `terra`/`luna` or another model, and never implement the task yourself — model substitution is a director decision.
 - If Codex is missing, unauthenticated, or fails after the retry: report under Verdict and STOP; do not hand-write the change.
@@ -121,7 +128,7 @@ Codex's self-report is a claim, not proof. After it finishes, YOU enumerate and 
 Cite all code as clickable path:line; never paste multi-line excerpts when a reference suffices. If either rate-limit check warned, the FIRST line of your message is the ⚠️ warning. End with exactly these sections:
 
 ## Verdict
-One paragraph: what Codex built and whether it meets the acceptance criteria (or the honest failure/STOP report). Note the reasoning effort used and the Codex last-message file path.
+One paragraph: what Codex built and whether it meets the acceptance criteria (or the honest failure/STOP report). Note the reasoning effort used and the Codex final-message, event-JSONL, telemetry-JSONL, and stderr-log paths.
 ## Evidence
 Verification commands run (tests/build/git) with their results, AND the rate-limit table — 5-hour (primary) and weekly (secondary), remaining % and reset ETA, BEFORE and AFTER — flagging any stale or unknown snapshot.
 ## Changes
