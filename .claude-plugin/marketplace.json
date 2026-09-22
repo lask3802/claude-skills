@@ -12,7 +12,7 @@
     {
       "name": "lask",
       "source": "./plugins/lask",
-      "description": "Seven-agent roster (scout, researcher, implementer, reviewer, verifier, Codex second-opinion, Codex implementer), the review-loop skill (isolated adversarial Claude+Codex review, adjudication, validated judge), hook-enforced model tiering, Codex job UX, and handoff.",
+      "description": "Seven-agent roster (scout, researcher, implementer, reviewer, verifier, Codex second-opinion, Codex implementer), the review-loop skill (isolated adversarial review by two or more model families, adjudication, validated judge), hook-enforced model tiering, Codex job UX, and handoff.",
       "version": "2.0.0",
       "author": {
         "name": "lask3802"

@@ -235,11 +235,20 @@ test("review-loop skill carries the isolated two-family review, adjudication, ju
   assert.match(body, /third time/i, "recurring failures move upstream");
   for (const t of ["sonnet", "opus", "fable", "tier: reviewed"]) assert.match(body, new RegExp(t), `tier table must mention ${t}`);
   assert.match(read("hooks/scripts/tier-workflow.js"), /lask:review-loop/, "the workflow deny reason must point here");
+  assert.match(body, /different model families/i, "reviewers must come from different families");
+  assert.match(body, /identical/i, "every reviewer gets the same brief");
+  assert.match(body, /mutation/i, "the brief must ask which mutation breaks each cited test");
+  assert.match(body, /open question/i, "schema gaps are open questions, not findings");
+  assert.match(body, /0 rejected/, "the validation evidence must ship with the skill");
+  const fam = read("skills/review-loop/second-family.md");
+  for (const s of ["lask:second-opinion", "muse exec", "opencode2 session export", "usage limit"])
+    assert.ok(fam.includes(s), `second-family.md must document ${s}`);
 });
 
 test("reviewer is adversarial and spec-anchored; verifier checks its own judge", () => {
   assert.match(read("agents/reviewer.md"), /assume the change is wrong/i);
   assert.match(read("agents/reviewer.md"), /spec line/i);
+  assert.match(read("agents/reviewer.md"), /mutation/i, "reviewer must test the tests it is shown");
   assert.match(read("agents/verifier.md"), /deliberately broken/i);
 });
 

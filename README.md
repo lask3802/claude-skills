@@ -27,13 +27,15 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 - 實際用量（2026-07-25 → 09-23，62 份 transcript）：`lask:implementer` 派遣 178 次，`lask:reviewer`＋`lask:verifier` 合計 8 次，`lask:second-opinion` 0 次，fable-sense／playbooks 0 次。真正有價值的那一半——獨立驗證——幾乎沒被用到。
 - Anthropic 的 code-migration kit（RUN-NOTES）：抓到問題的是**分開 context 的對抗式審查**與**驗證過的 judge**，不是更大的執行模型。
 
+2.0 在 dragonraja-rebon 的實際案例上驗證過（`migration/experiments/2026-09-23-inventory-20/`）：Opus 5.5 產出的 20 列 inventory 草稿通過自身所有驗收與 121 個引用的機械檢查，仍有 25 個缺陷（5 個屬實質錯誤）；三個不同家族的隔離 reviewer 分別找到 15／8／11 個，聯集 24 個，0 個誤報；主 session 自己抽查只找到 3 個。
+
 退役的元件（director／delegation-playbooks／fable-sense skill、director 開關指令與 hooks、debugger agent）完整保存在 `archive/lask-1.8/`，fable-sense 的 eval 證據也在裡面。
 
 ## 內含 skills
 
 | 指令 | 說明 |
 |------|------|
-| `/lask:review-loop` | 每個工作單位：規格落地 → 實作 → **兩個隔離的對抗式 reviewer**（Claude `lask:reviewer` + Codex `lask:second-opinion`，同一則訊息平行派出）→ 逐條裁決（單方發現預設不成立）→ fixer 只修已確認項 → **驗證過的 judge** 決定完成。含 judge 必須先在刻意弄壞的版本上失敗的規則、重複失敗上移成規則、以及 model tier 表（tiering hooks 的拒絕訊息指向這裡）。 |
+| `/lask:review-loop` | 每個工作單位：規格落地 → 實作 → **至少兩個、來自不同模型家族的隔離對抗式 reviewer**（Claude `lask:reviewer` + 第二家族：Codex `lask:second-opinion`、Meta Muse、opencode/MiMo 等，配方見 `second-family.md`；同一份 brief、平行派出）→ 逐條裁決（單方發現預設不成立）→ fixer 只修已確認項 → **驗證過的 judge** 決定完成。含 judge 必須先在刻意弄壞的版本上失敗的規則、重複失敗上移成規則、以及 model tier 表（tiering hooks 的拒絕訊息指向這裡）。 |
 | `/lask:handoff` | 產生一份自足、可直接複製的「交接文件」（目標、檔案+行號、關鍵發現、決策、現況、下一步），整則訊息就是文件，用 `/copy` 貼到新 session 或交給其他 agent。支援 `/lask:handoff <focus>` 聚焦、`/lask:handoff --file` 另存 HANDOFF.md。 |
 | `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|terra\|luna] [--effort none\|low\|medium\|high\|xhigh] [--sandbox write\|read] <任務>`。啟動後立即回傳 workspace-scoped job ID；底層保存純 event JSONL、authenticated owner＋PID、quiet-heartbeat telemetry、獨立 stderr／final-message 與真實 exit code，terminal commit 會綁定 final 的 size＋SHA-256。 |
 | `/lask:codex-status` | 查目前 workspace 最新或指定 Codex job；顯示 queued/running/completed 等狀態、reasoning/investigating/editing/verifying 等 phase、最後活動與 artifact 路徑。`--all` 可列出所有 jobs。 |
@@ -113,7 +115,7 @@ plugins/
       codex-job.mjs         # workspace-scoped start/status/result/cancel job UX
       codex-jsonl-runner.mjs # Codex events＋telemetry JSONL／artifact／process-tree runner
     skills/
-      review-loop/          # 隔離雙審 + judge 的工作單位迴圈（2.0 核心）
+      review-loop/          # 多家族隔離審查 + judge 的工作單位迴圈（2.0 核心）；second-family.md = 第二家族 reviewer 配方
       codex-run/
       handoff/
     tests/
