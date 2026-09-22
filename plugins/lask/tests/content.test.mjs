@@ -88,7 +88,8 @@ test("second-opinion embeds the verified codex recipe and the no-substitute rule
 
 test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () => {
   const src = read("agents/codex-implementer.md");
-  assert.match(src, /codex exec -m gpt-5\.6-sol/, "must pin the model");
+  assert.match(src, /codex exec -m gpt-6-sol/, "must pin the model");
+  assert.doesNotMatch(src, /gpt-5\.6/, "the previous generation must not linger in the implementer");
   assert.match(src, /model_reasoning_effort="xhigh"/, "must default to xhigh effort");
   assert.match(src, /--sandbox workspace-write/, "write mode is the whole point");
   assert.match(src, /codex-job\.mjs/, "must use the observable job controller");
@@ -129,7 +130,7 @@ test("codex-run skill ships the verified model×effort table and the mechanical 
   assert.match(fm["argument-hint"], /--model/, "argument-hint must surface --model");
   assert.match(fm["argument-hint"], /--effort/, "argument-hint must surface --effort");
   assert.match(body, /## Arguments/, "must document the flag parsing table");
-  for (const m of ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]) {
+  for (const m of ["gpt-6-sol", "gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol"]) {
     assert.match(body, new RegExp(m.replace(/\./g, "\\.")), `table must list ${m}`);
   }
   assert.match(body, /minimal.*(400|unsupported)/is, "must document that minimal is rejected by all three models");
@@ -143,6 +144,8 @@ test("codex-run skill ships the verified model×effort table and the mechanical 
   assert.match(body, /Never add `--dangerously-bypass/i, "the dangerous bypass flag must appear only as a prohibition");
   assert.match(body, /at capacity/i, "capacity error must be documented as transient");
   assert.match(body, /NEVER silently substitute/i, "model substitution stays a user/director decision");
+  assert.match(body, /usage limit/i, "quota exhaustion must stop the run, not trigger retries");
+  assert.match(fm["argument-hint"], /astra/, "argument-hint must offer the gpt-6 aliases");
   assert.match(body, /127\.0\.0\.1:8080/, "known MCP noise must be documented as ignorable");
   assert.match(body, /verbatim/i, "relay must be faithful");
 });

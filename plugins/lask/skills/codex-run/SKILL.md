@@ -1,7 +1,7 @@
 ---
 name: codex-run
-description: Use ONLY when the user or director explicitly dispatches a task to the Codex CLI and names it — 「用 codex 跑」「dispatch to codex」「/lask:codex-run」— optionally specifying a model (sol/terra/luna) and reasoning effort. Runs exactly ONE codex exec session from the verified model×effort table, collects the result, and relays it faithfully. Mechanical by design — a sonnet or haiku executor can follow it verbatim. Not for deciding WHETHER to use Codex — that call belongs to the user/director.
-argument-hint: "[--model sol|terra|luna] [--effort none|low|medium|high|xhigh] [--sandbox write|read] <要派給 Codex 的任務>"
+description: Use ONLY when the user or director explicitly dispatches a task to the Codex CLI and names it — 「用 codex 跑」「dispatch to codex」「/lask:codex-run」— optionally specifying a model (sol/astra/luna) and reasoning effort. Runs exactly ONE codex exec session from the verified model×effort table, collects the result, and relays it faithfully. Mechanical by design — a sonnet or haiku executor can follow it verbatim. Not for deciding WHETHER to use Codex — that call belongs to the user/director.
+argument-hint: "[--model sol|astra|luna] [--effort low|medium|high|xhigh|max|ultra] [--sandbox write|read] <要派給 Codex 的任務>"
 ---
 
 # codex-run — 手動派發一個任務給 Codex CLI
@@ -17,35 +17,46 @@ Parse the arguments FIRST, before anything else:
 
 | Flag | Accepted values | Maps to | Default when omitted |
 |---|---|---|---|
-| `--model` | `sol` \| `terra` \| `luna`（或完整名 `gpt-5.6-sol` 等） | `-m gpt-5.6-<alias>` | `gpt-5.6-sol` |
-| `--effort` | `none` \| `low` \| `medium` \| `high` \| `xhigh` | `-c model_reasoning_effort="<v>"` | `xhigh`（實作）/ `high`（審查分析）/ `low`（瑣碎機械改動） |
+| `--model` | `sol` \| `astra` \| `luna`（或完整名 `gpt-6-sol`、`gpt-5.6-sol` 等） | `-m gpt-6-<alias>` | `gpt-6-sol` |
+| `--effort` | `low` \| `medium` \| `high` \| `xhigh` \| `max` \| `ultra` | `-c model_reasoning_effort="<v>"` | `xhigh`（實作）/ `high`（審查分析）/ `low`（瑣碎機械改動） |
 | `--sandbox` | `write` \| `read` | `--sandbox workspace-write` / `read-only` | `write`（需改檔）/ `read`（純審查） |
 
 - Everything after the flags is the TASK TEXT, passed to Codex verbatim.
-- `--effort minimal` → reject immediately, point at the table below（三模型皆 400）。
+- `--effort none` / `minimal` → reject immediately, point at the table below (not offered for gpt-6; `minimal` returned 400 on every gpt-5.6 model).
+- `--effort ultra` with `luna` → reject: luna does not offer it.
 - Unknown flag value → ask back once with the accepted values; never guess.
 
-## Verified model × effort table
+## Model × effort table
 
-Probed live on 2026-07-13 (Codex CLI 0.144.0, 18/18 cells, "Reply OK" probes;
-internal IDs resolved to `gpt-5.6-{sol,terra,luna}-1p-codexswic-ev3`):
+**gpt-6 (current default).** Source: the Codex model catalog
+(`~/.codex/models_cache.json`, fetched 2026-09-23, codex-cli 0.151.0). Not yet
+probed live — the account's quota was exhausted when this table was written, so
+treat each cell as *offered*, not *verified*:
 
-| `-m` model | `none` | `minimal` | `low` | `medium` | `high` | `xhigh` |
+| `-m` model | `low` | `medium` | `high` | `xhigh` | `max` | `ultra` |
 |---|---|---|---|---|---|---|
-| `gpt-5.6-sol` | ✅ | ❌ 400 | ✅ | ✅ | ✅ (預設↓) | ✅ |
-| `gpt-5.6-terra` | ✅ | ❌ 400 | ✅ | ✅ | ✅ | ✅ |
-| `gpt-5.6-luna` | ✅ | ❌ 400 | ✅ | ✅ | ✅ | ✅ |
+| `gpt-6-sol` | offered | offered | offered | offered (預設↓) | offered | offered |
+| `gpt-6-astra` | offered | offered | offered | offered | offered | offered |
+| `gpt-6-luna` | offered | offered | offered | offered | offered | — |
 
-- `minimal` is rejected by ALL three models (`400 unsupported_value`) even though
-  the param enum accepts it — never use it.
+**gpt-5.6 (previous generation, still selectable by full name).** Probed live on
+2026-07-13 (Codex CLI 0.144.0, 18/18 cells): `none`/`low`/`medium`/`high`/`xhigh`
+✅ on `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`; `minimal` ❌ 400 on all three
+even though the param enum accepts it — never use it.
+
 - The menu is plan-dependent and changes over time. On a fresh
   `400 unsupported_value` / "model not supported", report the exact error —
-  do NOT try other cells to "fix" it yourself.
-- **Quality evidence exists only for `gpt-5.6-sol`** (benchmark-validated,
-  2026-07). `terra`/`luna` are verified *callable*, nothing more — use them only
-  when the dispatch names them explicitly.
+  do NOT try other cells to "fix" it yourself, and never fall back to gpt-5.6
+  unless the dispatch names it.
+- On "You've hit your usage limit", stop and report the reset time from the error.
+  Do not retry.
+- **Quality evidence:** none yet for gpt-6. The planned first measurement is the
+  scored review benchmark in dragonraja-rebon
+  (`migration/experiments/2026-09-23-inventory-20/`: 25 adjudicated defects,
+  other reviewers' recall and wall clock on record). `gpt-5.6-sol` was
+  benchmark-validated in 2026-07.
 
-**Defaults when the dispatch doesn't specify:** model `gpt-5.6-sol`;
+**Defaults when the dispatch doesn't specify:** model `gpt-6-sol`;
 effort `xhigh` for implementation, `high` for review/analysis,
 `low` for trivial mechanical edits. Sandbox: `workspace-write` when Codex must
 write files, `read-only` for review/analysis/second-opinion.
@@ -114,8 +125,9 @@ write files, `read-only` for review/analysis/second-opinion.
 | Symptom | Action |
 |---|---|
 | `turn.failed`: "Selected model is at capacity" | Server-side, TRANSIENT — can hit after substantial work. ONE retry with identical Codex flags and fresh `attempt2` artifacts; report the lost attempt. |
-| `400 unsupported_value` on `reasoning.effort` | You picked a ❌ cell (or the menu changed). Use the dispatched/default ✅ cell; if the dispatch itself named the bad cell, report back instead of guessing. |
+| `400 unsupported_value` on `reasoning.effort` | You picked a cell the table does not offer (or the menu changed). Use the dispatched/default offered cell; if the dispatch itself named the bad cell, report back instead of guessing. |
 | `400` "model not supported" | Plan-gating. Report verbatim and STOP. NEVER silently substitute another model — that is a user/director decision. |
+| `turn.failed`: "You've hit your usage limit" | Quota exhausted. Report the reset time from the message verbatim and STOP — no retry, no other model. |
 | Parent Bash timeout | Query `/lask:codex-status <job-id>`; the detached job survives a timed-out waiter. Do not retry while it may still be alive. |
 | Confirmed child crash/truncated output | ONE retry with identical Codex flags and fresh artifact paths, then report honestly. |
 | stderr: `rmcp::transport ... http://127.0.0.1:8080/mcp` errors | Known noise from a dead local MCP server entry — harmless, Codex proceeds. Ignore; do not report as a failure. |
