@@ -29,37 +29,33 @@ function claude(prompt, extraEnv = {}) {
   });
 }
 
-const ASK_POLICY =
-  "Does your context include a <lask-director-policy> block? Reply with exactly YES-DIRECTOR or NO-DIRECTOR and nothing else.";
-
-test("e2e: director policy is injected when switched on", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
-  assert.match(claude(ASK_POLICY, { LASK_DIRECTOR: "1" }), /YES-DIRECTOR/);
+// 2.0 retired director mode: no session may carry the old policy block.
+test("e2e: no director policy is injected", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+  const out = claude(
+    "Does your context include a <lask-director-policy> block? Reply with exactly YES-DIRECTOR or NO-DIRECTOR and nothing else.",
+    { LASK_DIRECTOR: "1" },
+  );
+  assert.match(out, /NO-DIRECTOR/);
 });
 
-// The 1.7.0 default: the plugin ships its skills, agents and tiering hooks without
-// putting the delegation policy (or its edit throttle) into every session.
-test("e2e: director policy is absent by default", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
-  assert.match(claude(ASK_POLICY, { LASK_DIRECTOR: "0" }), /NO-DIRECTOR/);
-});
-
-test("e2e: all eight lask agents are dispatchable", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+test("e2e: all seven lask agents are dispatchable", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
   const out = claude(
     'List every available agent type whose name starts with "lask:", comma-separated, nothing else.',
   );
-  for (const a of ["scout", "researcher", "implementer", "debugger", "verifier", "reviewer", "second-opinion", "codex-implementer"])
+  for (const a of ["scout", "researcher", "implementer", "verifier", "reviewer", "second-opinion", "codex-implementer"])
     assert.match(out, new RegExp(`lask:${a}`), `agent lask:${a} must be listed`);
 });
 
-test("e2e: both lask skills are registered", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+test("e2e: the lask skills are registered", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
   const out = claude(
     'List every skill available to you whose name starts with "lask:", comma-separated, nothing else.',
   );
-  for (const s of ["director", "delegation-playbooks"])
+  for (const s of ["review-loop", "handoff", "codex-run"])
     assert.match(out, new RegExp(`lask:${s}`), `skill lask:${s} must be listed`);
 });
 
 // Optional dispatch-proof: headless spawn of lask:scout that must echo a sentinel back
-// through the director. Double-gated (LASK_E2E=1 AND LASK_E2E_DISPATCH=1) so it never
+// through the main session. Double-gated (LASK_E2E=1 AND LASK_E2E_DISPATCH=1) so it never
 // runs in the default suite; opt in explicitly when you want to confirm live dispatch.
 const DISPATCH = process.env.LASK_E2E_DISPATCH === "1";
 test(

@@ -20,8 +20,7 @@ function runHook(script, input) {
     const stdout = execFileSync(process.execPath, [path.join(DIR, script)], {
       input: raw,
       encoding: 'utf8',
-      // director mode is opt-in since 1.7.0; these cases assert its ON behaviour
-      env: { ...process.env, LASK_DIRECTOR: '1', LASK_STATE_DIR: GATE_STATE },
+      env: { ...process.env, LASK_STATE_DIR: GATE_STATE },
     });
     return { stdout, status: 0 };
   } catch (e) {
@@ -122,7 +121,7 @@ test('workflow: untier-ed agent() call -> deny with instructive reason', () => {
   assert(h && h.permissionDecision === 'deny', 'expected deny');
   assert(/sonnet/.test(h.permissionDecisionReason) && /opus/.test(h.permissionDecisionReason) && /fable/.test(h.permissionDecisionReason), 'reason must restate tiers');
   assert(/tier: reviewed/.test(h.permissionDecisionReason), 'reason must name the bypass marker');
-  assert(/lask:director/.test(h.permissionDecisionReason), 'reason must point at the director skill');
+  assert(/lask:review-loop/.test(h.permissionDecisionReason), 'reason must point at the review-loop skill');
 });
 
 test('workflow: agent() with no opts at all -> deny', () => {
@@ -210,24 +209,6 @@ test('workflow: unreadable scriptPath fails open', () => {
 test('workflow: malformed stdin fails open', () => {
   const res = runHook('tier-workflow.js', '{{{');
   assert(res.status === 0 && res.stdout.trim() === '', 'expected silent pass-through');
-});
-
-// ---------- director-context.js ----------
-
-test('context: emits the director policy with roster, skills, and tiers', () => {
-  const res = runHook('director-context.js', { hook_event_name: 'SessionStart', source: 'startup' });
-  const out = parseOut(res);
-  const ctx = out && out.hookSpecificOutput && out.hookSpecificOutput.additionalContext;
-  assert(typeof ctx === 'string' && ctx.length > 0, 'expected additionalContext');
-  assert(out.hookSpecificOutput.hookEventName === 'SessionStart', 'expected SessionStart event name');
-  assert(ctx.includes('<lask-director-policy>') && ctx.includes('</lask-director-policy>'), 'context must be wrapped in the policy tag');
-  for (const m of ['sonnet', 'opus', 'fable']) assert(ctx.includes(m), `context must mention ${m}`);
-  for (const a of ['lask:scout', 'lask:researcher', 'lask:implementer', 'lask:debugger', 'lask:verifier', 'lask:reviewer', 'lask:second-opinion', 'lask:codex-implementer'])
-    assert(ctx.includes(a), `context must list ${a}`);
-  assert(ctx.includes('lask:director'), 'context must point at the director skill');
-  assert(ctx.includes('lask:delegation-playbooks'), 'context must point at the playbooks skill');
-  assert(ctx.includes('<=10 lines') || ctx.includes('≤10 lines'), 'context must state the direct-work threshold');
-  assert(/acceptance criteria/i.test(ctx), 'context must name the dispatch four-piece set');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

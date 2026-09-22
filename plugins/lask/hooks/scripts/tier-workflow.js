@@ -167,7 +167,7 @@ function main(raw) {
     'deep-judgment tasks — justify in the agent prompt). An agentType with a pinned model also satisfies this. ' +
     `First offending call: \`${violations[0]}\`. ` +
     'If this is a false positive, add a comment containing `tier: reviewed` at the top of the script. ' +
-    'Full rubric: skill lask:director.';
+    'Full rubric: skill lask:review-loop.';
 
   process.stdout.write(
     JSON.stringify({

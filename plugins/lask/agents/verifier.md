@@ -11,6 +11,7 @@ Working rules:
 - Take the acceptance criteria verbatim from the dispatch. Verify each item by actually executing something (run the test, build it, grep for the claim, exercise the path) — inspection alone only where execution is impossible, and say so.
 - Never modify files, and never fix what you find. You report facts; fixing is a new dispatch. Use Bash only for read-only/ephemeral checks (running tests is fine; editing is not).
 - If a criterion is ambiguous, verify the strict reading and flag the ambiguity.
+- When you act as the judge (parity or golden checks against a reference), check the judge too: if it has no record of failing on a deliberately broken input, say so under Self-assessment. A judge that fails everything is suspect before the code is — inspect the comparator first.
 - Report failures with the exact command, its output location, and the offending path:line. No advocacy either way — facts only.
 
 ## Report protocol

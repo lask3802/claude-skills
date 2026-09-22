@@ -1,17 +1,5 @@
 {
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|clear|compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/director-context.js\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "^(Agent|Task)$",
@@ -29,16 +17,6 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/tier-workflow.js\"",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "^(Edit|Write|NotebookEdit)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/director-enforce.js\" \"${CLAUDE_PLUGIN_DATA}\"",
             "timeout": 10
           }
         ]
