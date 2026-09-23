@@ -112,7 +112,8 @@ function canonicalWorkspace(value = process.cwd()) {
 function resolveJobRoot(options = {}, env = process.env) {
   if (options["state-root"]) return path.resolve(options["state-root"]);
   if (env.LASK_CODEX_JOB_ROOT) return path.resolve(env.LASK_CODEX_JOB_ROOT);
-  if (env.CLAUDE_PLUGIN_DATA) return path.join(path.resolve(env.CLAUDE_PLUGIN_DATA), "codex-jobs");
+  // Not CLAUDE_PLUGIN_DATA: the Bash tool that starts a job never carries lask's own value,
+  // only whatever another plugin exported into the session, so start and status disagreed.
   return path.join(os.tmpdir(), "lask-codex-jobs");
 }
 

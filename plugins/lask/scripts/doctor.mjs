@@ -17,6 +17,15 @@ const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 // One checkbox counter for the doctor and the resume hook (fenced examples do not count).
 const { counts: taskCounts } = createRequire(import.meta.url)(path.join(PLUGIN_ROOT, "hooks", "scripts", "run-resume.js"));
 const BLOCK_RE = /<!-- lask:autonomy:begin([^>]*)-->\r?\n?([\s\S]*?)<!-- lask:autonomy:end -->/;
+// Blocks older lask versions managed in CLAUDE.md for components 2.0 retired. The pattern
+// takes the blank lines around a block with it, so removal can leave exactly one behind.
+const RETIRED_BLOCK_RE = /(?:\r?\n)*<!-- BEGIN FABLE-SENSE[^>]*-->[\s\S]*?<!-- END FABLE-SENSE -->(?:\r?\n)*/g;
+
+// src without the retired blocks, touching nothing else; null when there are none.
+function withoutRetiredBlocks(src, eol) {
+  if (src == null || src.search(RETIRED_BLOCK_RE) < 0) return null;
+  return src.replace(RETIRED_BLOCK_RE, (m, at, whole) => (at === 0 ? "" : at + m.length >= whole.length ? eol : eol + eol));
+}
 
 // "Think harder" lines: Opus 5.5 always thinks and sizes it itself; effort is the dial.
 const THINK_RES = [
@@ -232,6 +241,10 @@ export function runChecks({ claudeDir, cwd }) {
     else add("stop-rule", "FAIL", "no CLAUDE.md rule says when to stop and when to keep going", `checked ${userMd} and the project memory files`, "/lask:doctor --install");
   }
 
+  // 1b. Blocks for retired components (they point at skills that no longer exist).
+  const retired = (readText(userMd) ?? "").match(RETIRED_BLOCK_RE);
+  if (retired) add("retired-blocks", "WARN", "CLAUDE.md still carries the retired fable-sense block", `${userMd}: it points at lask:fable-sense, which 2.0 removed`, "/lask:doctor --install (removes it, backs up first)");
+
   // 2. No "think hard" lines.
   const think = scan(files, THINK_RES);
   if (think.length) add("think-lines", "WARN", `${think.length} "think harder" line(s) in standing instructions`, think.join("\n"), "delete them; change effort instead (/effort)");
@@ -265,8 +278,8 @@ export function runChecks({ claudeDir, cwd }) {
   const tasks = readText(path.join(cwd, "TASKS.md"));
   if (tasks != null) {
     const c = taskCounts(tasks);
-    add("tasks-file", "INFO", "TASKS.md in this directory", `${c.open} open, ${c.done} done${c.contract ? "" : " (no Done means: line, so not a lask:long-run checklist)"}`);
-  } else add("tasks-file", "INFO", "no TASKS.md here", "long runs create one (skill lask:long-run)");
+    add("tasks-file", "INFO", "TASKS.md in this directory", `${c.open} open, ${c.done} done${c.contract ? "" : " (no Done means: line, so the resume hook ignores it)"}`);
+  } else add("tasks-file", "INFO", "no TASKS.md here", "long runs keep one (the autonomy block says how)");
 
   // 7. Model and effort (the dial that replaces "think harder").
   const model = setting(claudeDir, cwd, (s) => s.model);
@@ -289,28 +302,33 @@ export function runChecks({ claudeDir, cwd }) {
 export function install({ claudeDir, force }) {
   const actions = [];
   const userMd = path.join(claudeDir, "CLAUDE.md");
-  const src = readText(userMd);
+  const original = readText(userMd);
+  const eol = original && original.includes("\r\n") ? "\r\n" : "\n";
+  const stripped = withoutRetiredBlocks(original, eol);
+  if (stripped != null) actions.push(`removed the retired fable-sense block from ${userMd}`);
+  const src = stripped ?? original;
   const st = blockState(src);
-  const eol = src && src.includes("\r\n") ? "\r\n" : "\n";
   const block = renderBlock().replace(/\n/g, eol);
-  let next = null;
+  let next = stripped;
   const own = st.state === "missing" ? handWrittenStopRule([userMd, ...walk(path.join(claudeDir, "rules"), 3, [])]) : null;
-  if (st.state === "broken") actions.push(`${userMd} has a lone lask:autonomy marker; fix it by hand — nothing written`);
+  if (st.state === "broken") actions.push(`${userMd} has a lone lask:autonomy marker; fix it by hand — the autonomy block was not written`);
   else if (own && !force) actions.push(`kept your own stop rule (${own}); the block was not added (--force adds it anyway)`);
   else if (st.state === "missing") next = src == null || !src.trim() ? block + eol : src.replace(/\s*$/, "") + eol + eol + block + eol;
   else if (st.state === "outdated" || (st.state === "edited" && force)) next = src.replace(BLOCK_RE, () => block);
+  const rewrote = next != null && next !== src;
   if (next != null) {
     fs.mkdirSync(claudeDir, { recursive: true });
-    if (src != null) {
+    if (original != null) {
       const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "");
       const backup = `${userMd}.bak-lask-${stamp}`;
       fs.copyFileSync(userMd, backup);
       actions.push(`backed up ${userMd} -> ${backup}`);
     }
     fs.writeFileSync(userMd, next);
-    actions.push(`${st.state === "missing" ? "added" : "updated"} the autonomy block (v${pluginVersion()}) in ${userMd}`);
-  } else if (st.state === "edited") actions.push(`left the locally edited autonomy block in ${userMd} alone (--force to replace)`);
-  else if (st.state === "current") actions.push(`autonomy block in ${userMd} already current`);
+    if (rewrote) actions.push(`${st.state === "missing" ? "added" : "updated"} the autonomy block (v${pluginVersion()}) in ${userMd}`);
+  }
+  if (!rewrote && st.state === "edited") actions.push(`left the locally edited autonomy block in ${userMd} alone (--force to replace)`);
+  else if (!rewrote && st.state === "current") actions.push(`autonomy block in ${userMd} already current`);
 
   const avoid = path.join(claudeDir, "lask", "design-avoid.md");
   if (!fs.existsSync(avoid)) {

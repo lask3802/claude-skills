@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // PreToolUse hook for the Workflow tool (ultracode dynamic workflows).
 // Policy: every agent() call in a workflow script must carry an explicit model tier
-// (model: 'sonnet' | 'opus' | 'fable') or a pinned agentType, so workflow agents
-// never silently inherit the expensive main-loop model.
+// (model: 'sonnet' | 'opus') or a pinned agentType, so workflow agents never
+// silently inherit the main-loop model. Fable is retired: a literal
+// model: 'fable' is a violation too.
 //
 // A call is compliant when its argument span contains `model:`, `agentType:`,
-// or an object spread (`...` — opts not statically knowable).
+// or an object spread (`...` — opts not statically knowable), and no fable literal.
 // Escape hatch for false positives: a comment containing `tier: reviewed`.
 // Fail-open: on any error (bad JSON, unreadable scriptPath), exit 0 with no output.
 'use strict';
@@ -125,7 +126,16 @@ function findViolations(src) {
       j++;
     }
     const span = masked.slice(openIdx + 1, j - 1);
-    if (!/\bmodel\s*:/.test(span) && !/\bagentType\s*:/.test(span) && !span.includes('...')) {
+    const untiered = !/\bmodel\s*:/.test(span) && !/\bagentType\s*:/.test(span) && !span.includes('...');
+    // masking blanks string contents but keeps indices: find `model:` in code, then read its
+    // whole value expression (up to the next , } or newline) from src, so `c ? 'fable' : 'opus'` counts
+    const fable = [...span.matchAll(/\bmodel\s*:\s*/g)].some((k) => {
+      const from = k.index + k[0].length;
+      const end = span.slice(from).search(/[,}\n]/);
+      const value = src.slice(openIdx + 1 + from, end < 0 ? j - 1 : openIdx + 1 + from + end);
+      return /fable/i.test(value);
+    });
+    if (untiered || fable) {
       const snippet = src.slice(m.index, Math.min(j, m.index + 160)).replace(/\s+/g, ' ');
       violations.push(snippet);
     }
@@ -161,10 +171,10 @@ function main(raw) {
   if (!violations.length) return;
 
   const reason =
-    `lask model-tiering: ${violations.length} agent() call(s) in this workflow script have no explicit model tier. ` +
-    "Rewrite the script so EVERY agent() call sets model: 'sonnet' (mechanical: extraction, formatting, simple search), " +
-    "model: 'opus' (default: implementation, review, research, synthesis), or model: 'fable' (ONLY for explicitly assigned " +
-    'deep-judgment tasks — justify in the agent prompt). An agentType with a pinned model also satisfies this. ' +
+    `lask model-tiering: ${violations.length} agent() call(s) in this workflow script have no explicit model tier or use fable. ` +
+    "Rewrite the script so EVERY agent() call sets model: 'opus' (default: implementation, review, research, synthesis) " +
+    "or model: 'sonnet' (mechanical only: extraction, formatting, simple search). Fable is retired for subagents: use opus. " +
+    'An agentType with a pinned model also satisfies this. ' +
     `First offending call: \`${violations[0]}\`. ` +
     'If this is a false positive, add a comment containing `tier: reviewed` at the top of the script. ' +
     'Full rubric: skill lask:review-loop.';

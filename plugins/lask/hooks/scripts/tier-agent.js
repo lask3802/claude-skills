@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // PreToolUse hook for the Agent/Task tool (subagents and agent-team teammates).
-// Policy: spawned agents must not inherit the main-loop model by default.
-//   - explicit `model` -> untouched (explicit choice is the gate, including fable)
+// Policy: spawned agents run on opus; sonnet only for mechanical work; no fable.
+//   - explicit fable -> opus (fable subagents are retired: Opus 5.5 is the better buy)
+//   - any other explicit `model` -> untouched (explicit choice is the gate)
+//   - model "inherit" counts as unset (it would hand down the main-loop model)
 //   - plugin-namespaced subagent_type (contains ':') -> untouched, its definition governs
 //   - Explore -> sonnet (read-only search is mechanical)
 //   - everything else -> opus (default workhorse)
@@ -17,19 +19,32 @@ function main(raw) {
   }
   const input = data && data.tool_input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) return;
-  if (input.model) return;
   const type = typeof input.subagent_type === 'string' ? input.subagent_type : '';
-  if (type.includes(':')) return;
-  const model = type === 'Explore' ? 'sonnet' : 'opus';
+  // `inherit` would hand the main-loop model (possibly fable) down: treat it as unset.
+  const inherit = /^inherit$/i.test(String(input.model || ''));
+  const { model: _dropped, ...rest } = input;
+  let updatedInput;
+  let why;
+  if (input.model && !inherit) {
+    if (!/fable/i.test(String(input.model))) return;
+    updatedInput = { ...input, model: 'opus' };
+    why = 'fable subagents are retired, so this spawn runs on opus.';
+  } else if (type.includes(':')) {
+    if (!inherit) return;
+    updatedInput = rest; // the plugin agent's own definition governs
+    why = 'model "inherit" dropped; the agent definition picks the model.';
+  } else {
+    const model = type === 'Explore' ? 'sonnet' : 'opus';
+    updatedInput = { ...rest, model };
+    why = `spawned agent defaulted to ${model}. Pass \`model: "sonnet"\` only for mechanical work.`;
+  }
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'allow',
-        permissionDecisionReason:
-          `lask model-tiering: spawned agent defaulted to ${model}. ` +
-          'Pass `model` explicitly to override; fable only for explicitly assigned complex tasks.',
-        updatedInput: { ...input, model },
+        permissionDecisionReason: `lask model-tiering: ${why}`,
+        updatedInput,
       },
     }),
   );

@@ -15,7 +15,7 @@ Re-measured 2026-09-23 (lask 2.1 review, same machine):
 
 | Reviewer | Result |
 |---|---|
-| Codex CLI 0.151.0 on a ChatGPT account | Unusable. Config model `gpt-6-astra`: 400 "requires a newer version of Codex". `-m gpt-6-sol`: 400 "not supported when using Codex with a ChatGPT account". Upgrade the CLI or switch the account before relying on `lask:second-opinion`. |
+| Codex CLI 0.151.0 on a ChatGPT account | Unusable. Config model `gpt-6-astra`: 400 "requires a newer version of Codex". `-m gpt-6-sol`: 400 "not supported when using Codex with a ChatGPT account". Upgrade the CLI or switch the account before relying on `lask:second-opinion`. Re-run 2026-09-23 later: the config model `gpt-6-astra` was accepted and stopped only at the usage limit (reset 2026-09-24 18:20); `-m gpt-6-sol` still 400 on a ChatGPT account, so on such an account leave `-m` out. |
 | Gemini CLI 0.52.0 | Unusable: `IneligibleTierError` (the free Code Assist tier no longer serves this client). Headless also needs `--skip-trust`; `--approval-mode plan` is its read-only mode. |
 | opencode 1.18.32 (`opencode`, not `opencode2`) | `opencode run --agent plan -m opencode-go/kimi-k3 "$(cat <brief>)"` and `-m opencode-go/glm-5.3` both pass the smoke test. `opencode-go/deepseek-v4-pro` needs "Global" region in the workspace privacy settings. The `plan` agent auto-rejects reads outside the workspace, so put the brief and the spec inside the repository (a git-ignored folder) or the run ends at the first rejected read. |
 

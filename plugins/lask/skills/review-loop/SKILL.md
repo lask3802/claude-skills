@@ -72,10 +72,9 @@ never by an agent inside the loop.
 
 | Tier | For |
 |---|---|
-| `sonnet` / built-in Explore | mechanical, checkable by inspection: inventories, extraction, sweeps |
 | `opus` — default | implementation, review, research, synthesis |
-| `lask:codex-implementer` | only where a measured comparison showed it beats opus on this kind of task |
-| `fable` + written reason | deep multi-constraint judgment in the execution itself — rare |
+| `sonnet` / built-in Explore | mechanical only, checkable by inspection: inventories, extraction, sweeps |
+| `fable` | retired for subagents: Opus 5.5 is the better buy, and the hooks move fable spawns to opus |
 
 Stakes buy **more reviewers from more families**, not a bigger executor. Workflow
 scripts must tier every `agent()` call (`model:` or a pinned `agentType`); add

@@ -61,10 +61,34 @@ const wfInput = (tool_input) => ({
 
 // ---------- tier-agent.js ----------
 
-test('agent: explicit model passes through untouched (incl. fable)', () => {
-  const res = runHook('tier-agent.js', agentInput({ prompt: 'x', model: 'fable' }));
-  assert(res.status === 0, `exit ${res.status}`);
-  assert(res.stdout.trim() === '', `expected no output, got: ${res.stdout}`);
+test('agent: explicit non-fable model passes through untouched', () => {
+  for (const model of ['sonnet', 'opus', 'haiku']) {
+    const res = runHook('tier-agent.js', agentInput({ prompt: 'x', model }));
+    assert(res.status === 0, `exit ${res.status}`);
+    assert(res.stdout.trim() === '', `${model}: expected no output, got: ${res.stdout}`);
+  }
+});
+
+test('agent: explicit fable is rewritten to opus (fable subagents retired)', () => {
+  for (const [model, subagent_type] of [['fable', undefined], ['claude-fable-5-1', 'lask:reviewer']]) {
+    const out = parseOut(runHook('tier-agent.js', agentInput({ prompt: 'x', model, subagent_type })));
+    const h = out && out.hookSpecificOutput;
+    assert(h && h.permissionDecision === 'allow', `${model}: expected allow`);
+    assert(h.updatedInput.model === 'opus', `${model}: model=${h.updatedInput.model}`);
+    assert(h.updatedInput.prompt === 'x', 'other fields must be preserved');
+    assert(/retired/.test(h.permissionDecisionReason), 'reason must say fable is retired');
+  }
+});
+
+test('agent: model "inherit" counts as unset (it would hand down a fable main loop)', () => {
+  const plain = parseOut(runHook('tier-agent.js', agentInput({ prompt: 'x', model: 'inherit' })));
+  assert(plain.hookSpecificOutput.updatedInput.model === 'opus', 'inherit on a built-in agent -> opus');
+  const explore = parseOut(runHook('tier-agent.js', agentInput({ prompt: 'x', model: 'inherit', subagent_type: 'Explore' })));
+  assert(explore.hookSpecificOutput.updatedInput.model === 'sonnet', 'inherit on Explore -> sonnet');
+  const plugin = parseOut(runHook('tier-agent.js', agentInput({ prompt: 'x', model: 'inherit', subagent_type: 'lask:scout' })));
+  const h = plugin && plugin.hookSpecificOutput;
+  assert(h && h.permissionDecision === 'allow', 'expected allow');
+  assert(!('model' in h.updatedInput) && h.updatedInput.subagent_type === 'lask:scout', 'plugin agent: model dropped, definition governs');
 });
 
 test('agent: omitted model defaults to opus', () => {
@@ -122,6 +146,20 @@ test('workflow: untier-ed agent() call -> deny with instructive reason', () => {
   assert(/sonnet/.test(h.permissionDecisionReason) && /opus/.test(h.permissionDecisionReason) && /fable/.test(h.permissionDecisionReason), 'reason must restate tiers');
   assert(/tier: reviewed/.test(h.permissionDecisionReason), 'reason must name the bypass marker');
   assert(/lask:review-loop/.test(h.permissionDecisionReason), 'reason must point at the review-loop skill');
+});
+
+test('workflow: model fable -> deny (fable retired), fable inside a prompt string does not', () => {
+  for (const script of [
+    META + "await agent('x', { model: 'fable' })\n",
+    META + 'await agent("x", {\n  model: "claude-fable-5-1",\n})\n',
+    META + "await agent('x', { model: hard ? 'fable' : 'opus', label: 'y' })\n",
+  ]) {
+    const out = parseOut(runHook('tier-workflow.js', wfInput({ script })));
+    assert(out && out.hookSpecificOutput.permissionDecision === 'deny', `expected deny for: ${script}`);
+  }
+  const ok = META + "await agent(\"compare model: 'fable' output\", { model: 'opus' })\n";
+  const res = runHook('tier-workflow.js', wfInput({ script: ok }));
+  assert(res.stdout.trim() === '', `prompt text must not trip the check, got: ${res.stdout}`);
 });
 
 test('workflow: agent() with no opts at all -> deny', () => {

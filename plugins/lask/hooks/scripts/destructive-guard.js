@@ -7,9 +7,11 @@
 //     anything outside the working directory (temp directories excepted); plain deletes
 //     outside the working directory; the same through find -delete, xargs rm, rsync --delete
 //     and PowerShell pipelines, judged by the upstream path
-//   - git history or work-tree destruction (force push, remote branch delete or prune,
-//     reset --hard, clean -f, branch -D, checkout/restore/switch that discard changes,
-//     stash drop/clear, worktree remove --force, history rewrites)
+//   - git: always for remote history (force push, remote branch delete or prune) and for
+//     what removes recovery points (history rewrites, reflog expire, gc --prune=now); for
+//     reset --hard, clean -f, checkout/restore/switch that discard changes and worktree
+//     remove --force only when git status says uncommitted work would really be lost.
+//     Branch deletes and stash drop/clear pass: reflog or fsck brings them back.
 //   - DROP / TRUNCATE / unqualified DELETE read by a database client, dropdb
 //   - disk and power commands, registry publishing, image pushes, repo/release deletion
 // It follows cd (scoped to subshells), shell keywords and grouping, wrappers (sudo, env, nice,
@@ -21,6 +23,7 @@
 // Fail-open: on any error, exit 0 with no output so the tool call proceeds unmodified.
 'use strict';
 
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -501,60 +504,294 @@ function changeDir(name, tokens, ctx) {
   return P.resolve(ctx.base ?? ctx.root, t);
 }
 
+// Redirections are not arguments: `2>&1` and `>log` are one token, `> log` is an operator
+// followed by its target.
+const REDIRECTION = /^(?:\d+|&|\*)?(?:>>|>&|>\||<<<|<>|<&|>|<)/;
+function dropRedirections(tokens) {
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const m = tokens[i].match(REDIRECTION);
+    if (!m) out.push(tokens[i]);
+    else if (m[0] === tokens[i]) i++;
+  }
+  return out;
+}
+
+// All git probes of one hook call share one budget, well under the hook's 10 s timeout: a
+// hook that times out lets the command run, so a spent budget reads as "cannot tell".
+const GIT_BUDGET_MS = 6000;
+let gitDeadline = 0;
+// The command itself points git elsewhere (GIT_DIR=, $env:GIT_WORK_TREE=, ...): probes of the
+// working directory would read the wrong repository.
+let gitRedirected = false;
+const GIT_ENV_RE = /\bGIT_(?:DIR|WORK_TREE|INDEX_FILE|COMMON_DIR)\s*=|\$env:GIT_(?:DIR|WORK_TREE|INDEX_FILE|COMMON_DIR)\b/i;
+
+// Read-only git query in `dir`: its stdout, or null when git fails, is missing or is slow.
+// `noMatch` is what an exit code 1 means for commands that use it for "nothing found".
+function gitOut(dir, args, { input, noMatch = null } = {}) {
+  const left = gitDeadline - Date.now();
+  if (dir == null || left < 250) return null;
+  try {
+    return execFileSync('git', ['--no-optional-locks', '-C', dir, ...args], {
+      encoding: 'utf8',
+      timeout: left,
+      maxBuffer: 64 * 1024 * 1024,
+      input,
+      stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'ignore'],
+      windowsHide: true,
+      env: { ...process.env, LC_ALL: 'C', LANGUAGE: 'C' }, // parsed output stays English
+    });
+  } catch (e) {
+    return e && e.status === 1 && noMatch != null ? noMatch : null;
+  }
+}
+
+const zsplit = (out) => out.split('\0').filter(Boolean);
+
+// A word the shell passes through unchanged: no expansion, glob, brace, home or redirection.
+// Only such words narrow a check to some paths; any other word widens it to the whole tree
+// (a clean tree loses nothing, whatever the word turns into).
+const PLAIN = /^(?!~)[^\s$`{}*?[\]<>'"\\]+$/;
+const plain = (list) => (list.every((w) => PLAIN.test(w)) ? list : null);
+
+const toplevel = (base) => (gitOut(base, ['rev-parse', '--show-toplevel']) ?? '').trim() || null;
+const isRev = (base, rev) => Boolean((gitOut(base, ['rev-parse', '--verify', '-q', `${rev}^{commit}`]) ?? '').trim());
+
+// Uncommitted tracked work under `paths` (whole tree when null): what status shows, plus
+// assume-unchanged entries, whose edits status hides. true / false / null (cannot tell).
+function trackedDirty(base, paths) {
+  const scope = ['--', ...(paths ?? [])];
+  const status = gitOut(base, ['status', '--porcelain', '--untracked-files=no', ...scope]);
+  if (status == null) return null;
+  if (status.trim()) return true;
+  const tags = gitOut(base, ['ls-files', '-v', ...scope]);
+  if (tags == null) return null;
+  return /^[a-z] /m.test(tags) ? null : false;
+}
+
+// Where writing `rev` would land on something that is not in the index: a path of rev that
+// the index lacks and that exists on disk (untracked or ignored, any case on a case-folding
+// disk), or whose parent on disk is a file. Relative to the top; null when git cannot say.
+function clobbered(base, rev, paths) {
+  const top = toplevel(base);
+  const inRev = top && gitOut(top, ['ls-tree', '-r', '-z', '--name-only', rev]);
+  const inIndex = top && gitOut(top, ['ls-files', '-z', '--cached']);
+  if (!top || inRev == null || inIndex == null) return null;
+  const index = new Set(zsplit(inIndex));
+  const scope = paths && paths.map((p) => P.relative(top, P.resolve(base, p)).split(P.sep).join('/'));
+  const inScope = (f) => !scope || scope.some((s) => s === '' || f === s || f.startsWith(`${s}/`));
+  const hits = new Set();
+  for (const f of zsplit(inRev)) {
+    if (index.has(f) || !inScope(f)) continue;
+    const parts = f.split('/');
+    for (let k = 1; k <= parts.length; k++) {
+      const rel = parts.slice(0, k).join('/');
+      let st;
+      try {
+        st = fs.lstatSync(P.join(top, rel));
+      } catch {
+        break; // nothing there, so nothing below it either
+      }
+      if (k === parts.length || !st.isDirectory()) {
+        hits.add(rel);
+        break;
+      }
+    }
+  }
+  return { top, hits: [...hits] };
+}
+
+// A command that writes `rev` (null: the index) over `paths` (null: the whole tree), throwing
+// away whatever is in the way: would it lose work?
+function wouldLose(base, paths, rev) {
+  if (base == null) return null;
+  const tracked = trackedDirty(base, paths);
+  if (tracked !== false || rev == null) return tracked;
+  const c = clobbered(base, rev, paths);
+  return c == null ? null : c.hits.length > 0;
+}
+
+// A plain switch keeps local changes and refuses to overwrite untracked files, but it does
+// overwrite ignored ones that `rev` tracks.
+function switchLoses(base, rev) {
+  if (base == null) return null;
+  const c = clobbered(base, rev, null);
+  if (c == null || !c.hits.length) return c && false;
+  const ignored = gitOut(c.top, ['check-ignore', '-z', '--stdin'], { input: `${c.hits.join('\0')}\0`, noMatch: '' });
+  return ignored == null ? null : zsplit(ignored).length > 0;
+}
+
+// Uncommitted or untracked work in a worktree (ignored files are expendable to git here, as
+// in a plain remove). A directory that is gone has nothing to lose.
+function worktreeDirty(dir) {
+  if (!fs.existsSync(dir)) return false;
+  const status = gitOut(dir, ['status', '--porcelain', '--untracked-files=normal']);
+  if (status == null) return null;
+  if (status.trim()) return true;
+  const tags = gitOut(dir, ['ls-files', '-v']);
+  return tags == null ? null : /^[a-z] /m.test(tags) ? null : false;
+}
+
+// git resolves a worktree by a unique trailing path suffix first, then by path. When this
+// hook cannot tell which one git will pick, every linked worktree must be clean.
+function worktreeLoses(base, target, ctx) {
+  const list = base == null ? null : gitOut(base, ['worktree', 'list', '--porcelain']);
+  if (list == null) return null;
+  const trees = list.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9).trim());
+  const norm = (s) => (IS_WIN ? s.toLowerCase() : s).replace(/\\/g, '/').replace(/\/+$/, '');
+  const t = target != null && PLAIN.test(target) ? expand(target, base, ctx.kind) : null;
+  let pick = null;
+  if (t != null) {
+    const bySuffix = trees.filter((w) => norm(w).endsWith(`/${norm(t)}`));
+    pick = bySuffix.length === 1 ? bySuffix[0] : trees.find((w) => norm(w) === norm(P.resolve(base, t))) ?? null;
+  }
+  let state = false;
+  for (const w of pick ? [pick] : trees.slice(1)) {
+    const s = worktreeDirty(w);
+    if (s === true) return true;
+    if (s === null) state = null;
+  }
+  return state;
+}
+
+// Local git commands only matter when they would really throw uncommitted work away: a clean
+// tree lets them through; dirty or unknowable state asks. What reflog or fsck brings back
+// (moved branch tips, deleted branches, dropped stashes) never asks; what removes those
+// recovery points always does.
+const losesWork = (state, why) => (state === false ? null : why);
+
 function gitRisk(tokens, ctx) {
+  tokens = dropRedirections(tokens);
   let i = 1;
-  let base = ctx.base;
+  let base = gitRedirected || envValue('GIT_DIR') || envValue('GIT_WORK_TREE') ? null : ctx.base;
   while (i < tokens.length && tokens[i].startsWith('-')) {
     if (tokens[i] === '-C' && tokens[i + 1] != null) {
       const t = expand(tokens[i + 1], base, ctx.kind);
       base = t == null || base == null ? null : P.resolve(base, t);
     }
+    if (/^--(?:git-dir|work-tree)(?:=|$)/.test(tokens[i])) base = null; // another repository
     i += ['-C', '-c', '--git-dir', '--work-tree', '--namespace'].includes(tokens[i]) ? 2 : 1;
   }
   const sub = tokens[i];
   const args = tokens.slice(i + 1);
   const has = (...fs) => args.some((a) => fs.includes(a));
   const short = (ch) => args.some((a) => /^-[a-zA-Z]+$/.test(a) && a.includes(ch));
+  // A cluster such as -fB or -sother hides which word is an option value: do not guess.
+  const glued = (letters) => args.some((a) => /^-[a-zA-Z]{2,}$/.test(a) && [...letters].some((ch) => a.includes(ch)));
+  const force = has('--force') || short('f');
+  const fromFile = args.some((a) => a.startsWith('--pathspec-from-file'));
+  const dd = args.indexOf('--');
+  // Positional words before `--`, skipping the values of the options that take one.
+  const positional = (valued) => {
+    const out = [];
+    const head = dd < 0 ? args : args.slice(0, dd);
+    for (let k = 0; k < head.length; k++) {
+      if (valued.includes(head[k])) k++;
+      else if (!head[k].startsWith('-')) out.push(head[k]);
+    }
+    return out;
+  };
+  const unresolved = `git ${sub} in a form this guard cannot resolve`;
   switch (sub) {
     case 'push':
       if (has('--force', '--mirror', '--delete', '--prune') || short('f') || short('d') || args.some((a) => a.startsWith('--force-with-lease')))
         return 'git push that overwrites or deletes remote history';
       if (args.some((a) => /^\+\S/.test(a) || /^:\S/.test(a))) return 'git push with a force or delete refspec';
       return null;
-    case 'reset':
-      return has('--hard', '--merge') ? 'git reset that discards work-tree changes' : null;
-    case 'clean':
-      return (has('--force') || short('f')) && !(has('--dry-run') || short('n')) ? 'git clean deletes untracked files' : null;
-    case 'branch':
-      return has('-D') || ((has('-d', '--delete') || short('d')) && (has('--force') || short('f'))) ? 'git branch force-delete' : null;
-    case 'checkout': {
-      if (has('--', '.', '--force') || short('f')) return 'git checkout that discards uncommitted changes';
-      const pos = [];
-      for (const a of args) {
-        if (['-b', '-B', '--orphan'].includes(a)) return null; // creating a branch
-        if (!a.startsWith('-')) pos.push(a);
-      }
-      if (pos.length >= 2) return 'git checkout <rev> <path> overwrites uncommitted changes';
-      if (pos.length === 1 && base != null && fs.existsSync(P.resolve(base, pos[0]))) return `git checkout ${pos[0]} discards uncommitted changes to it`;
-      return null;
+    case 'reset': {
+      if (!has('--hard', '--merge')) return null;
+      const rev = positional([])[0] ?? 'HEAD';
+      return losesWork(PLAIN.test(rev) ? wouldLose(base, null, rev) : null, 'git reset --hard over uncommitted or untracked work');
     }
-    case 'restore':
-      return has('--staged', '-S') && !has('--worktree', '-W') ? null : 'git restore that discards uncommitted changes';
-    case 'switch':
-      return has('--discard-changes', '--force') || short('f') ? 'git switch that discards uncommitted changes' : null;
-    case 'stash':
-      return ['drop', 'clear'].includes(args[0]) ? `git stash ${args[0]} loses stashed work` : null;
-    case 'worktree':
-      return args[0] === 'remove' && (has('--force') || short('f')) ? 'git worktree remove --force discards its changes' : null;
+    case 'clean': {
+      if (!force || has('--dry-run') || short('n')) return null;
+      if (glued('e')) return unresolved;
+      // Ask git what this exact clean would delete: the same flags (-ff reaches nested
+      // repositories, -d directories, -x ignored files), with -n added and quiet removed.
+      const flags = [];
+      const paths = [];
+      for (let k = 0; k < args.length; k++) {
+        const a = args[k];
+        if (a === '-e' || a === '--exclude') flags.push(a, args[++k] ?? '');
+        else if (a === '--quiet' || a === '--') continue;
+        else if (/^-[a-zA-Z]+$/.test(a)) {
+          const kept = a.replace(/q/g, '');
+          if (kept !== '-') flags.push(kept);
+        } else if (a.startsWith('-')) flags.push(a);
+        else paths.push(a);
+      }
+      const out = gitOut(base, ['clean', '-n', ...flags, '--', ...(plain(paths) ?? [])]);
+      if (out == null) return 'git clean -f (could not tell what it deletes)';
+      const n = out.split('\n').filter((l) => l.startsWith('Would remove ')).length;
+      return n ? `git clean deletes ${n} untracked path(s)` : null;
+    }
+    case 'checkout': {
+      if (fromFile || glued('bB')) return unresolved;
+      const pos = positional(['-b', '-B', '--orphan']);
+      if (force && dd < 0) {
+        // -f discards local changes whatever else the command does (branch creation included).
+        const rev = pos[0] ?? 'HEAD';
+        return losesWork(PLAIN.test(rev) ? wouldLose(base, null, rev) : null, 'git checkout -f over uncommitted or untracked work');
+      }
+      if (has('-b', '-B', '--orphan')) {
+        const start = pos[0]; // the new branch name is an option value
+        if (start == null) return null; // a new branch at HEAD: the tree does not change
+        return losesWork(PLAIN.test(start) ? switchLoses(base, start) : null, 'git checkout -b would overwrite ignored files');
+      }
+      if (dd >= 0) {
+        const rev = pos[0] ?? null;
+        if (rev != null && !PLAIN.test(rev)) return unresolved;
+        return losesWork(wouldLose(base, plain(args.slice(dd + 1)), rev), `git checkout over uncommitted work in ${args.slice(dd + 1).join(' ')}`);
+      }
+      if (!pos.length) return null;
+      if (base == null || !plain(pos)) return unresolved; // a branch or a path: cannot tell
+      if (pos.length === 1 && isRev(base, pos[0])) return losesWork(switchLoses(base, pos[0]), 'git checkout would overwrite ignored files');
+      // checkout <tree-ish> <path>... when the first word is a revision, else every word is a path.
+      const rev = pos.length > 1 && isRev(base, pos[0]) ? pos[0] : null;
+      const paths = rev ? pos.slice(1) : pos;
+      return losesWork(wouldLose(base, paths, rev), `git checkout over uncommitted work in ${paths.join(' ')}`);
+    }
+    case 'restore': {
+      if (fromFile || glued('s')) return unresolved;
+      if (has('--staged', '-S') && !has('--worktree', '-W')) return null; // unstaging keeps the work tree
+      let rev = null;
+      const raw = [];
+      for (let k = 0; k < args.length; k++) {
+        if (args[k] === '-s' || args[k] === '--source') rev = args[++k] ?? '';
+        else if (args[k].startsWith('--source=')) rev = args[k].slice(9);
+        else if (!args[k].startsWith('-')) raw.push(args[k]);
+      }
+      if (!raw.length) return null; // git refuses a restore without paths
+      if (rev != null && !PLAIN.test(rev)) return unresolved;
+      return losesWork(wouldLose(base, plain(raw), rev), `git restore over uncommitted work in ${raw.join(' ')}`);
+    }
+    case 'switch': {
+      if (glued('cC')) return unresolved;
+      const pos = positional(['-c', '-C', '--create', '--force-create', '--orphan']);
+      if (has('--orphan')) return losesWork(base == null ? null : trackedDirty(base, null), 'git switch --orphan over uncommitted work');
+      const rev = pos[0] ?? (has('-c', '-C', '--create', '--force-create') ? 'HEAD' : null);
+      if (rev == null) return null;
+      if (!PLAIN.test(rev)) return unresolved;
+      if (has('--discard-changes') || force) return losesWork(wouldLose(base, null, rev), 'git switch --discard-changes over uncommitted or untracked work');
+      if (rev === 'HEAD') return null;
+      return losesWork(switchLoses(base, rev), 'git switch would overwrite ignored files');
+    }
+    case 'worktree': {
+      if (args[0] !== 'remove' || !force) return null;
+      const target = args.slice(1).find((a) => !a.startsWith('-'));
+      return losesWork(worktreeLoses(base, target, ctx), `git worktree remove --force over uncommitted or untracked files in ${target}`);
+    }
     case 'filter-branch':
     case 'filter-repo':
       return 'git history rewrite';
     case 'reflog':
-      return args[0] === 'expire' ? 'git reflog expire removes recovery points' : null;
+      return ['expire', 'delete'].includes(args[0]) ? `git reflog ${args[0]} removes recovery points` : null;
+    case 'prune':
+      return has('--dry-run') || short('n') ? null : 'git prune removes unreachable objects (recovery points)';
     case 'update-ref':
       return has('-d') ? 'git update-ref -d deletes a ref' : null;
     case 'gc':
-      return args.some((a) => a === '--prune=now') ? 'git gc --prune=now removes recovery points' : null;
+      return args.some((a) => a.startsWith('--prune=')) ? 'git gc --prune=<date> removes recovery points' : null;
     default:
       return null;
   }
@@ -721,7 +958,11 @@ function segmentRisk(segs, i, ctx) {
   if (DELETERS.has(name)) return deleteCommandRisk(name, tokens, segs, i, ctx);
   if (name === 'find') return findRisk(tokens, ctx);
   if (name === 'rsync') return rsyncRisk(tokens, ctx);
-  if (name === 'git') return gitRisk(tokens, ctx);
+  if (name === 'git') {
+    // env -C / sudo -D / --chdir run git somewhere this guard did not follow
+    const moved = seg.tokens.slice(0, idx).some((t) => /^(?:-C|-D|--chdir)(?:=|$)/.test(t));
+    return gitRisk(tokens, moved ? { ...ctx, base: null } : ctx);
+  }
   if (DB_CLIENTS.has(name)) {
     // The client reads its arguments and whatever is piped into it.
     for (let k = i; k >= 0; k--) {
@@ -754,6 +995,10 @@ function segmentRisk(segs, i, ctx) {
 
 // Why `command` needs a human, or null. cwd is the session's working directory.
 function evaluate(command, cwd, kind, depth = 0, base = cwd) {
+  if (depth === 0) {
+    gitDeadline = Date.now() + GIT_BUDGET_MS;
+    gitRedirected = GIT_ENV_RE.test(String(command));
+  }
   const { text, dbBodies } = stripHeredocs(String(command), kind);
   for (const body of dbBodies) {
     const why = dbRisk(body);

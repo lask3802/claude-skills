@@ -138,5 +138,7 @@ write files, `read-only` for review/analysis/second-opinion.
 Rate limits ride on rollout files, not the CLI: latest non-null
 `payload.rate_limits` on a `token_count` event under
 `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` (`primary`=5h window,
-`secondary`=weekly; warn when `100 - used_percent < 20`). The self-contained
-reader script lives in `agents/codex-implementer.md` — reuse it as-is.
+`secondary`=weekly; warn when `100 - used_percent < 20`). Read them with
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-ratelimit.js"`: `warn:true` means a
+window has under 20% left, `ok:false` means limits unknown, `stale:true` means
+the snapshot is more than 15 minutes old.

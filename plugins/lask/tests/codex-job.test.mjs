@@ -570,3 +570,11 @@ test("controller owns final-message injection and safely tokenizes slash-command
   );
   assert.deepEqual(normalizeForwardedArgs([""]), []);
 });
+
+test("job root ignores another plugin's CLAUDE_PLUGIN_DATA leaked into the session", () => {
+  const { resolveJobRoot } = jobModule;
+  const leaked = { CLAUDE_PLUGIN_DATA: path.join(os.tmpdir(), "some-other-plugin-data") };
+  assert.equal(resolveJobRoot({}, leaked), path.join(os.tmpdir(), "lask-codex-jobs"));
+  assert.equal(resolveJobRoot({}, { ...leaked, LASK_CODEX_JOB_ROOT: path.join(os.tmpdir(), "x") }), path.join(os.tmpdir(), "x"));
+  assert.equal(resolveJobRoot({ "state-root": path.join(os.tmpdir(), "y") }, leaked), path.join(os.tmpdir(), "y"));
+});

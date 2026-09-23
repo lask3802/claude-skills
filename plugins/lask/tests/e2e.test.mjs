@@ -38,11 +38,11 @@ test("e2e: no director policy is injected", { skip: !ENABLED && "set LASK_E2E=1"
   assert.match(out, /NO-DIRECTOR/);
 });
 
-test("e2e: all seven lask agents are dispatchable", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+test("e2e: all six lask agents are dispatchable", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
   const out = claude(
     'List every available agent type whose name starts with "lask:", comma-separated, nothing else.',
   );
-  for (const a of ["scout", "researcher", "implementer", "verifier", "reviewer", "second-opinion", "codex-implementer"])
+  for (const a of ["scout", "researcher", "implementer", "verifier", "reviewer", "second-opinion"])
     assert.match(out, new RegExp(`lask:${a}`), `agent lask:${a} must be listed`);
 });
 
@@ -50,8 +50,9 @@ test("e2e: the lask skills are registered", { skip: !ENABLED && "set LASK_E2E=1"
   const out = claude(
     'List every skill available to you whose name starts with "lask:", comma-separated, nothing else.',
   );
-  for (const s of ["review-loop", "handoff", "codex-run"])
+  for (const s of ["review-loop", "codex-run"])
     assert.match(out, new RegExp(`lask:${s}`), `skill lask:${s} must be listed`);
+  assert.doesNotMatch(out, /lask:(?:handoff|long-run|fan-out|design-brief)\b/, "2.2 retired these skills");
 });
 
 // Optional dispatch-proof: headless spawn of lask:scout that must echo a sentinel back

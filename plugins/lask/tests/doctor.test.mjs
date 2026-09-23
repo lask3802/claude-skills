@@ -169,6 +169,58 @@ test("--install does not stack a second stop rule on a hand-written one or a bro
   }
 });
 
+test("the retired fable-sense block is flagged, and --install removes it with a backup", () => {
+  const box = sandbox();
+  try {
+    const md = path.join(box.claudeDir, "CLAUDE.md");
+    const fable =
+      "<!-- BEGIN FABLE-SENSE (managed by the lask plugin — plugins/lask/skills/fable-sense; edit there, not here) -->\r\n" +
+      "## Hard-task discipline\r\n\r\ninvoke the `lask:fable-sense` skill\r\n<!-- END FABLE-SENSE -->\r\n";
+    const own = "When a step doesn't need me, keep going.\r\nStop and ask before anything destructive.\r\n";
+    fs.writeFileSync(md, `# Mine\r\n\r\n${fable}\r\n## Language\r\n\r\n${own}`);
+    const before = doctor(box);
+    assert.equal(before.byId["retired-blocks"].status, "WARN");
+    const r = doctor(box, "--install");
+    const src = fs.readFileSync(md, "utf8");
+    assert.equal(src, `# Mine\r\n\r\n## Language\r\n\r\n${own}`, "block gone, surrounding text and CRLF intact, own stop rule kept");
+    assert.match(r.actions.join("\n"), /removed the retired fable-sense block/);
+    assert.match(r.actions.join("\n"), /kept your own stop rule/);
+    const backups = fs.readdirSync(box.claudeDir).filter((f) => f.startsWith("CLAUDE.md.bak-lask-"));
+    assert.equal(backups.length, 1);
+    assert.match(fs.readFileSync(path.join(box.claudeDir, backups[0]), "utf8"), /BEGIN FABLE-SENSE/);
+    assert.equal(r.byId["retired-blocks"], undefined, "no warning once removed");
+  } finally {
+    box.done();
+  }
+});
+
+test("removing a retired block touches nothing else, wherever the block sits", () => {
+  const box = sandbox();
+  try {
+    const md = path.join(box.claudeDir, "CLAUDE.md");
+    const own = "When a step doesn't need me, keep going.\nStop and ask before anything destructive.\n"; // no block gets added
+    const block = "<!-- BEGIN FABLE-SENSE (managed) -->\n## Hard-task discipline\n<!-- END FABLE-SENSE -->";
+    const fence = "```text\nline one\n\n\nline two after two blank lines\n```\n";
+    const cases = [
+      [`${block}\n\n# Mine\n${fence}${own}`, `# Mine\n${fence}${own}`],
+      [`# Mine\n${fence}${own}\n${block}\n`, `# Mine\n${fence}${own}`],
+      [`# Mine\n\n\n\nspaced\n\n${block}\n\n${fence}${own}`, `# Mine\n\n\n\nspaced\n\n${fence}${own}`],
+    ];
+    for (const [before, after] of cases) {
+      fs.writeFileSync(md, before);
+      const r = doctor(box, "--install");
+      assert.equal(fs.readFileSync(md, "utf8"), after);
+      assert.match(r.actions.join("\n"), /removed the retired fable-sense block/);
+    }
+    fs.writeFileSync(md, `# Mine\n${fence}${own}`);
+    const r = doctor(box, "--install");
+    assert.equal(fs.readFileSync(md, "utf8"), `# Mine\n${fence}${own}`, "blank-line runs outside a block are never collapsed");
+    assert.doesNotMatch(r.actions.join("\n"), /removed the retired|backed up/, "no block, no removal claimed, no rewrite");
+  } finally {
+    box.done();
+  }
+});
+
 test("taking ownership by removing the markers never leads to a second copy", () => {
   const box = sandbox();
   try {

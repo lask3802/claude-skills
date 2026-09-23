@@ -29,10 +29,9 @@ const AGENTS = [
   "verifier",
   "reviewer",
   "second-opinion",
-  "codex-implementer",
 ];
 
-test("agents directory contains exactly the seven roster agents", () => {
+test("agents directory contains exactly the six roster agents", () => {
   const files = fs.readdirSync(path.join(PLUGIN_ROOT, "agents")).sort();
   assert.deepEqual(files, AGENTS.map((a) => `${a}.md`).sort());
 });
@@ -59,7 +58,6 @@ test("tool restrictions match each agent's mandate", () => {
   assert.equal(tools["verifier"], "Read, Glob, Grep, Bash");
   assert.equal(tools["reviewer"], "Read, Glob, Grep, Bash");
   assert.equal(tools["second-opinion"], "Bash, Read");
-  assert.equal(tools["codex-implementer"], "Bash, Read, Glob, Grep");
   assert.equal(tools["implementer"], undefined, "implementer needs the full toolset");
 });
 
@@ -86,26 +84,13 @@ test("second-opinion embeds the verified codex recipe and the no-substitute rule
   assert.match(src, /heartbeat/i, "must explain quiet-period liveness");
 });
 
-test("codex-implementer pins the sol/xhigh recipe and the rate-limit guard", () => {
-  const src = read("agents/codex-implementer.md");
-  assert.match(src, /codex exec -m gpt-6-sol/, "must pin the model");
-  assert.doesNotMatch(src, /gpt-5\.6/, "the previous generation must not linger in the implementer");
-  assert.match(src, /model_reasoning_effort="xhigh"/, "must default to xhigh effort");
-  assert.match(src, /--sandbox workspace-write/, "write mode is the whole point");
-  assert.match(src, /codex-job\.mjs/, "must use the observable job controller");
-  assert.match(src, /--json/, "must request live JSONL events");
-  assert.match(src, /job ID/i, "must surface a stable job handle");
-  assert.match(src, /codex-status/, "must document status UX");
-  assert.match(src, /codex-result/, "must document result UX");
-  assert.match(src, /--prompt/, "runner must pipe the prompt file to stdin");
-  assert.match(src, /never as a shell argument/i);
-  assert.match(src, /already detached/i, "must explain that start is already backgrounded");
-  assert.match(src, /resets_at/, "rate-limit reader must key off the real resets_at field");
-  assert.match(src, /remaining < 20/, "must state the 20%-remaining warn threshold");
-  assert.match(src, /BEFORE and AFTER/i, "must check limits on both sides of the run");
-  assert.match(src, /never (?:silently )?substitute/i, "the 400 sol error must not trigger a silent model swap");
-  assert.match(src, /limits unknown/i, "must degrade gracefully when no snapshot exists");
-  assert.match(src, /require\('node:fs'\)/, "rate-limit reader must be an embedded Node script, self-contained");
+test("the Codex rate-limit reader ships as a script and codex-run points at it", () => {
+  const src = read("scripts/codex-ratelimit.js");
+  assert.match(src, /require\('node:fs'\)/, "self-contained Node, no dependencies");
+  assert.match(src, /resets_at/, "must key off the real resets_at field");
+  assert.match(src, /rem<20/, "must warn under 20% remaining");
+  assert.match(src, /ok:false/, "must degrade to limits unknown when no snapshot exists");
+  assert.match(read("skills/codex-run/SKILL.md"), /\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/codex-ratelimit\.js/);
 });
 
 test("all frontmatter stays strict-YAML-safe (no unquoted colon-space in values)", () => {
@@ -150,20 +135,25 @@ test("codex-run skill ships the verified model×effort table and the mechanical 
   assert.match(body, /verbatim/i, "relay must be faithful");
 });
 
-test("model-tiers is retired and handoff survives", () => {
+test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, "skills", "model-tiers")), "model-tiers must be deleted");
-  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "handoff", "SKILL.md")));
+  const archive = path.join(PLUGIN_ROOT, "..", "..", "archive", "lask-2.1");
+  for (const gone of ["skills/long-run", "skills/fan-out", "skills/design-brief", "skills/handoff", "agents/codex-implementer.md"]) {
+    assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, gone)), `${gone} must be retired`);
+    assert.ok(fs.existsSync(path.join(archive, gone)), `${gone} must be kept in archive/lask-2.1`);
+  }
+  assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop"]);
 });
 
-test("plugin.json is 2.1.0 and describes the roster, the review loop and the playbook layer", () => {
+test("plugin.json is 2.2.0 and describes the roster, the review loop and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.1.0");
+  assert.equal(pkg.version, "2.2.0");
   assert.match(pkg.description, /review-loop/);
-  assert.match(pkg.description, /long-run/);
   assert.match(pkg.description, /doctor/);
   assert.match(pkg.description, /destructive-command guard/);
-  assert.doesNotMatch(pkg.description, /director|fable-sense/i, "retired components must not be advertised");
+  assert.doesNotMatch(pkg.description, /director|fable-sense|long-run|fan-out|design-brief|handoff|Codex implementer/i,
+    "retired components must not be advertised");
 });
 
 test("codex JSONL runner is cross-platform, observable, and exit-code safe", () => {
@@ -233,25 +223,12 @@ test("hooks.json wires tiering, the destructive guard and the compact-only resum
     assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, gone)), `${gone} must be retired to archive/`);
 });
 
-test("playbook skills carry their contracts", () => {
-  for (const name of ["long-run", "fan-out", "design-brief"]) {
-    const { fm } = parseFrontmatter(read(`skills/${name}/SKILL.md`));
-    assert.equal(fm.name, name);
-    assert.match(fm.description, /^Use when /, `${name}: description must state triggering conditions`);
-    assert.match(fm.description, /Not for /, `${name}: description must carry a skip-gate`);
-    assert.ok(fm.description.length <= 400, `${name}: keep the listing short`);
-  }
-  const longRun = read("skills/long-run/SKILL.md");
-  for (const s of ["Done means:", "Stop and ask only if:", "TASKS.md", "Blocked on owner", "## Blocked on me", "## Changed", "## Found", "compaction"])
-    assert.ok(longRun.includes(s), `long-run must carry ${s}`);
-  assert.ok(longRun.indexOf("## Blocked on me") < longRun.indexOf("## Changed"), "what the owner owes comes first");
-  const fanOut = read("skills/fan-out/SKILL.md");
-  for (const s of ["ONE message", "could not confirm", "evidence", "lask:review-loop", "isolation", "Workflow"])
-    assert.ok(fanOut.includes(s), `fan-out must carry ${s}`);
-  assert.match(fanOut, /re-dispatch that unit once/i, "evidence-free verdicts are re-dispatched, not averaged in");
-  const design = read("skills/design-brief/SKILL.md");
-  for (const s of ["~/.claude/lask/design-avoid.md", ".claude/design-avoid.md", "templates/design-avoid.md", "Never delete lines"])
-    assert.ok(design.includes(s), `design-brief must carry ${s}`);
+test("the autonomy block carries the long-run, fan-out and design rules the 2.1 skills held", () => {
+  const t = read("templates/claude-md-autonomy.md");
+  for (const s of ["TASKS.md", "Done means:", "after a compaction", "one subagent per unit", "evidence", "one table",
+    "~/.claude/lask/design-avoid.md", ".claude/design-avoid.md"])
+    assert.ok(t.includes(s), `the autonomy block must carry ${s}`);
+  assert.ok(t.length <= 2200, `the block loads in every session; keep it short (${t.length} chars)`);
 });
 
 test("templates ship the stop rule, the report shape and the design seed", () => {
@@ -264,7 +241,7 @@ test("templates ship the stop rule, the report shape and the design seed", () =>
   assert.match(t, /could not confirm/);
   assert.doesNotMatch(t, /lask:autonomy:(?:begin|end)/, "markers are added by the doctor, not stored in the template");
   assert.match(t, /Subagents follow the report protocol/, "subagents load CLAUDE.md too; they keep their own report shape");
-  assert.match(t, /lask:handoff/, "skills that fix their own output format win");
+  assert.match(t, /skill with its own output format keeps it/, "skills that fix their own output format win");
   assert.match(t, /design avoid list/, "lists a skill maintains at the user's request are not a stop");
   const seed = read("templates/design-avoid.md");
   assert.ok((seed.match(/^- /gm) || []).length >= 5, "the seed must name concrete patterns");
@@ -306,7 +283,8 @@ test("review-loop skill carries the isolated two-family review, adjudication, ju
   assert.match(body, /not confirmed/i, "single-reviewer findings default to not confirmed");
   assert.match(body, /deliberately broken/i, "the judge must be validated against a broken variant");
   assert.match(body, /third time/i, "recurring failures move upstream");
-  for (const t of ["sonnet", "opus", "fable", "tier: reviewed"]) assert.match(body, new RegExp(t), `tier table must mention ${t}`);
+  for (const t of ["sonnet", "opus", "tier: reviewed"]) assert.match(body, new RegExp(t), `tier table must mention ${t}`);
+  assert.match(body, /`fable` \| retired/, "the tier table must mark fable as retired, not as a tier");
   assert.match(read("hooks/scripts/tier-workflow.js"), /lask:review-loop/, "the workflow deny reason must point here");
   assert.match(body, /different model families/i, "reviewers must come from different families");
   assert.match(body, /identical/i, "every reviewer gets the same brief");
@@ -328,7 +306,7 @@ test("reviewer is adversarial and spec-anchored; verifier checks its own judge",
 test("README documents the roster, the skills, and the test commands", () => {
   const readme = fs.readFileSync(path.join(PLUGIN_ROOT, "..", "..", "README.md"), "utf8");
   for (const a of AGENTS) assert.match(readme, new RegExp(`lask:${a}`), `README must document lask:${a}`);
-  for (const s of ["review-loop", "long-run", "fan-out", "design-brief", "doctor", "handoff", "codex-run", "codex-status", "codex-result", "codex-cancel"])
+  for (const s of ["review-loop", "doctor", "codex-run", "codex-status", "codex-result", "codex-cancel"])
     assert.match(readme, new RegExp(`lask:${s}`), `README must document lask:${s}`);
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/tier\.test\.js/);
   assert.match(readme, /node --test plugins\/lask\/tests\//);
@@ -339,6 +317,7 @@ test("README documents the roster, the skills, and the test commands", () => {
   assert.match(readme, /LASK_GUARD=0/, "README must document the guard off switch");
   assert.match(readme, /LASK_E2E=1/);
   assert.match(readme, /archive\/lask-1\.8/, "README must say where the retired components went");
+  assert.match(readme, /archive\/lask-2\.1/, "README must say where the 2.2 retirements went");
   assert.doesNotMatch(readme, /lask:director|lask:delegation-playbooks|lask:fable-sense|lask:debugger|enforce\.test\.js/,
     "README must not advertise retired components");
 });

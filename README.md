@@ -33,7 +33,7 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 
 ## 2.1：對齊 Opus 5.5 playbook
 
-依 [Getting the most out of Opus 5.5](https://claude.dev/blog/getting-the-most-out-of-opus-5-5/)（2026-09-22）的檢查清單，把能程式化的項目做成元件；只靠使用者習慣的項目（附圖而不是重打數字、/fast、/model）不做成元件。
+依 [Getting the most out of Opus 5.5](https://claude.dev/blog/getting-the-most-out-of-opus-5-5/)（2026-09-22）的檢查清單，把能程式化的項目做成元件；只靠使用者習慣的項目（附圖而不是重打數字、/fast、/model）不做成元件。（歷史紀錄：2.2 起 `long-run`、`fan-out`、`design-brief` 併入 autonomy 區塊，見下一節。）
 
 | Playbook 項目 | 2.1 元件 |
 |---|---|
@@ -48,16 +48,23 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.2：只留 CLAUDE.md 做不到的部分
+
+2.1 把 playbook 的每一項都做成元件，但那篇文章的建議多半是「在 prompt 或 CLAUDE.md 講一句」。2.2 用實測決定去留（2026-09-23，`claude -p` 第一次呼叫的實際 token 數，搭配 60 天、524 個 session 的使用紀錄）：
+
+- **併入 CLAUDE.md autonomy 區塊**：`long-run`（`TASKS.md`、`Done means:`、壓縮後重讀）、`fan-out`（每單位一個 subagent、先驗證證據、一張表）、`design-brief`（`design-avoid.md` 當硬性限制、被否決的樣式加進清單）。區塊本身從約 600 tokens 縮到約 330 tokens，同時吸收三個 skill 的規則。`run-resume` hook 照舊認 `TASKS.md` 的 `Done means:` 行。
+- **退役到 `archive/lask-2.1/`**：`handoff`（7 次；實際在用的是另一個 1KB 的 `/handoff`，29 次）、`codex-implementer`（60 天 2 次，也沒有贏過 Opus 5.5 的實測）。它內嵌的 Codex 配額讀取程式改成 `scripts/codex-ratelimit.js`，由 `codex-run` 呼叫。
+- **model tiering**：subagent 一律 opus，只有機械式工作用 sonnet；**fable 退役**：Agent 呼叫帶 fable 會被改寫成 opus，workflow script 寫 `model: 'fable'` 會被擋下。
+- **destructive guard 的本機 git 改看實際狀態**：`reset --hard`、`checkout --`、`restore`、`switch -f`、`clean -f`、`worktree remove --force` 在執行當下查 `git status`（`clean` 則跑同旗標的 `git clean -n`），只有真的會丟掉未 commit 修改或未追蹤檔案時才問；`branch -D`、`stash drop/clear` 靠 reflog/fsck 救得回來，直接放行。force push、刪遠端分支、`reflog expire`、`gc --prune=now`、history rewrite 照舊一律問。同時修掉 `2>&1`、`> /dev/null` 被當成路徑，連單純切分支都跳確認的 bug。
+- `/lask:doctor --install` 會先備份，再移除 1.x 留在 `~/.claude/CLAUDE.md` 的 `FABLE-SENSE` 區塊（它指向已不存在的 skill）。
+- Codex job 目錄不再跟著環境裡的 `CLAUDE_PLUGIN_DATA` 走（從 Bash 啟動的 job 拿到的是別的 plugin 匯出的值，`start` 與 `/lask:codex-status` 可能各看各的），固定在 temp 下的 `lask-codex-jobs`，可用 `LASK_CODEX_JOB_ROOT` 覆寫。
+
 ## 內含 skills
 
 | 指令 | 說明 |
 |------|------|
 | `/lask:review-loop` | 每個工作單位：規格落地 → 實作 → **至少兩個、來自不同模型家族的隔離對抗式 reviewer**（Claude `lask:reviewer` + 第二家族：Codex `lask:second-opinion`、Meta Muse、opencode/MiMo 等，配方見 `second-family.md`；同一份 brief、平行派出）→ 逐條裁決（單方發現預設不成立）→ fixer 只修已確認項 → **驗證過的 judge** 決定完成。含 judge 必須先在刻意弄壞的版本上失敗的規則、重複失敗上移成規則、以及 model tier 表（tiering hooks 的拒絕訊息指向這裡）。 |
-| `/lask:long-run` | 長時間／多步驟任務的合約：`TASKS.md` 頂端寫 `Done means`、`Stop and ask only if`、`Out of scope`，checklist 即狀態（壓縮後先重讀），不需要人時不停，結尾 `Blocked on me` → `Changed` → `Found`。少於約五步的任務不用。 |
-| `/lask:fan-out` | 同一個問題套用到許多獨立單位（每個 service、每個 endpoint、每列 inventory）：清單落地、同一份 brief、每單位一個 subagent 分波平行、接受前親自驗證證據（無證據者重派一次）、最後一張表。需要對規格的 code change 另走 review-loop。 |
-| `/lask:design-brief` | 任何由 Claude 決定外觀的視覺產出：讀取累積式禁用清單當硬性限制，交付後列出替代選擇方便否決，使用者否決的樣式加進清單再重做。 |
-| `/lask:doctor` | 對照 Opus 5.5 playbook 檢查環境：stop rule、think-hard 句、要求展示推理的句子、destructive guard、design 清單、`TASKS.md` 進度、model／effort。`--install` 把 autonomy 區塊裝進 `~/.claude/CLAUDE.md`（先備份；本地改過的不覆蓋，除非 `--force`）並建立 design 清單。 |
-| `/lask:handoff` | 產生一份自足、可直接複製的「交接文件」（目標、檔案+行號、關鍵發現、決策、現況、下一步），整則訊息就是文件，用 `/copy` 貼到新 session 或交給其他 agent。支援 `/lask:handoff <focus>` 聚焦、`/lask:handoff --file` 另存 HANDOFF.md。 |
+| `/lask:doctor` | 對照 Opus 5.5 playbook 檢查環境：stop rule、think-hard 句、要求展示推理的句子、destructive guard、design 清單、`TASKS.md` 進度、model／effort、過期的 `FABLE-SENSE` 區塊。`--install` 把 autonomy 區塊（stop rule、長任務 `TASKS.md`、每單位一個 subagent、design 禁用清單、回報格式）裝進 `~/.claude/CLAUDE.md`（先備份；本地改過的不覆蓋，除非 `--force`），移除 `FABLE-SENSE` 區塊，並建立 design 清單。 |
 | `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|astra\|luna] [--effort low\|medium\|high\|xhigh\|max\|ultra] [--sandbox write\|read] <任務>`（預設 gpt-6-sol；gpt-5.6 仍可用完整名指定）。啟動後立即回傳 workspace-scoped job ID；底層保存純 event JSONL、authenticated owner＋PID、quiet-heartbeat telemetry、獨立 stderr／final-message 與真實 exit code，terminal commit 會綁定 final 的 size＋SHA-256。 |
 | `/lask:codex-status` | 查目前 workspace 最新或指定 Codex job；顯示 queued/running/completed 等狀態、reasoning/investigating/editing/verifying 等 phase、最後活動與 artifact 路徑。`--all` 可列出所有 jobs。 |
 | `/lask:codex-result` | 讀取最新或指定已結束 job 的 Codex final response；失敗／取消時不會假裝成功。 |
@@ -71,9 +78,8 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | `lask:researcher` | opus | 外部研究：官方文件、API、生態系（唯讀＋web） |
 | `lask:implementer` | opus | 依規格實作＋自測義務（附指令與結果證據）；也擔任 review loop 的 fixer |
 | `lask:reviewer` | opus | 對抗式審查：假設變更是錯的，以規格行號為準，severity 分級、每條附失敗情境 |
-| `lask:second-opinion` | sonnet | 跨模型審查：唯讀沙箱跑 Codex CLI，以 event＋telemetry JSONL 顯示過程並忠實轉述，採納與否由主 session 逐條裁決 |
+| `lask:second-opinion` | sonnet | 跨模型審查：唯讀沙箱跑 Codex CLI，以 event＋telemetry JSONL 顯示過程並忠實轉述，採納與否由主 session 逐條裁決（sonnet 只做轉述，判斷在 Codex 與主 session） |
 | `lask:verifier` | opus | 驗收官／judge：逐條執行驗收，只回報事實、絕不動手修；擔任 judge 時也檢查 judge 本身是否驗證過 |
-| `lask:codex-implementer` | sonnet | 透過 Codex CLI（gpt-6-sol，xhigh）建置；跑前後各查一次 5h／週配額，任一視窗剩餘 <20% 即於報告頂端 ⚠️ 警告；sol 若回 400 則停手、不擅自換模型。**只在實測贏過 opus 的任務類型上使用。** |
 
 所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes（僅 implementer）／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
 
@@ -81,13 +87,20 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 
 ### Model tiering
 
-- **PreToolUse `Agent`/`Task`**（`tier-agent.js`）：spawn 沒帶 `model` 時自動改寫——內建 `Explore` → sonnet、其餘 → opus。明確傳入的 `model`（含 fable）一律尊重；含 `:` 的 plugin agent 交給其定義決定。
-- **PreToolUse `Workflow`**（`tier-workflow.js`）：ultracode script 中每個 `agent()` 都必須帶 `model:`（或 pinned `agentType`），否則整個呼叫被擋下並附修正指示；誤判時在 script 加註解 `tier: reviewed` 略過。
+- **PreToolUse `Agent`/`Task`**（`tier-agent.js`）：spawn 沒帶 `model` 時自動改寫——內建 `Explore` → sonnet、其餘 → opus；**明確帶 fable 的改寫成 opus**（fable subagent 已退役）；`model: "inherit"` 視同沒帶（避免把 Fable 主 session 的模型傳下去）；其他明確傳入的 `model` 一律尊重；含 `:` 的 plugin agent 交給其定義決定。
+- **PreToolUse `Workflow`**（`tier-workflow.js`）：ultracode script 中每個 `agent()` 都必須帶 `model: 'opus'`／`'sonnet'`（或 pinned `agentType`），寫 `model: 'fable'` 也算違規，整個呼叫被擋下並附修正指示；誤判時在 script 加註解 `tier: reviewed` 略過。
 - 設計原則 **fail-open**：任何 hook 出錯只會退化成「沒有政策」、`exit 0` 不輸出，絕不弄壞 spawn。沒有 SessionStart 政策注入，也沒有編輯節流。
 
-### Destructive guard（2.1）
+### Destructive guard（2.1；git 規則 2.2 改看實際狀態）
 
-- **PreToolUse `Bash`/`PowerShell`**（`destructive-guard.js`）：一律回 `ask`（從不 `deny`），讓人決定。涵蓋：遞迴刪除工作目錄本身／上層／home／磁碟根／`.git`／git repo／只由變數組成的路徑（`"$DIR/$SUB"`，變數為空就是根目錄）／工作目錄外路徑（temp 目錄例外）；非遞迴刪除工作目錄外檔案；`find -delete`、`xargs rm`、`rsync --delete`、PowerShell `Get-ChildItem | Remove-Item` 依上游路徑判斷；`git push --force`／刪或 prune remote branch、`reset --hard`、`clean -f`、`branch -D`、丟棄變更的 `checkout`（含 `git checkout <檔案>`）／`restore`／`switch`、`stash drop|clear`、`worktree remove --force`、`filter-branch`、`reflog expire`；送進 DB client 的 DROP／TRUNCATE／無 WHERE 的 DELETE、`dropdb`；格式化磁碟、關機、`npm|pnpm|cargo|poetry publish`、`gem|docker|helm push`、`gh repo|release delete`。
+- **PreToolUse `Bash`/`PowerShell`**（`destructive-guard.js`）：一律回 `ask`（從不 `deny`），讓人決定。涵蓋：遞迴刪除工作目錄本身／上層／home／磁碟根／`.git`／git repo／只由變數組成的路徑（`"$DIR/$SUB"`，變數為空就是根目錄）／工作目錄外路徑（temp 目錄例外）；非遞迴刪除工作目錄外檔案；`find -delete`、`xargs rm`、`rsync --delete`、PowerShell `Get-ChildItem | Remove-Item` 依上游路徑判斷；送進 DB client 的 DROP／TRUNCATE／無 WHERE 的 DELETE、`dropdb`；格式化磁碟、關機、`npm|pnpm|cargo|poetry publish`、`gem|docker|helm push`、`gh repo|release delete`。
+- **git**：遠端歷史（`push --force`／`--force-with-lease`／`--mirror`／刪或 prune remote branch）與會刪掉救援點的操作（`filter-branch`／`filter-repo`、`reflog expire|delete`、`prune`、`gc --prune=<任何值>`、`update-ref -d`）一律問。會動到工作區的 `reset --hard`、`checkout`、`restore`、`switch`、`clean -f`、`worktree remove --force` 在執行當下問 git，只有真的會丟東西才問：
+  - 已追蹤檔案有未 commit 的修改（含 staged 新檔、`assume-unchanged` 藏住的修改）；
+  - 目標 revision 要寫入的路徑上已經有 index 以外的東西（未追蹤或 ignored 檔、大小寫不同的同名檔、檔案與目錄互換）；單純切分支時 git 會擋未追蹤檔，但會默默蓋掉 ignored 檔，所以只看 ignored；
+  - `clean` 跑同旗標（含 `-ff`、`-d`、`-x`）的 `git clean -n`；
+  - worktree 依 git 的規則解析（先比結尾路徑、再比完整路徑，Windows 不分大小寫），解析不出來就要求所有 linked worktree 都乾淨。
+  
+  shell 會改寫的字（變數、glob、`{a,b}`、`~`、`$(…)`、黏著的重導向）不拿來縮小範圍，改檢查整個工作區：整個工作區乾淨就不會丟任何東西。讀不到狀態時一律問：不是 repo、`cd` 到未知路徑、`--git-dir`／`GIT_DIR=`／`env -C`、`-fB`／`-sother` 這類黏在一起的短選項、`--pathspec-from-file`、或所有 git 查詢合計超過 6 秒。`branch -D`、`stash drop|clear` 靠 reflog／fsck 救得回來，放行。重導向（`2>&1`、`> log`）不算參數。經過兩輪隔離審查，找到的 16 種漏問寫法都有重現測試，並用變異測試確認測試會抓到。
 - 追蹤 `cd`／`pushd`／`Set-Location`，看穿 `if`／`for`／`while`／`( )`／`{ }`、`sudo -u`／`nice -n`／`timeout` 等包裝，以及 `bash -c`、`pwsh -Command`／`-EncodedCommand`、`cmd /c`、`eval` 巢狀指令；已知值的變數（`$HOME`、`$PWD`、`$env:X`、`%X%`）會展開。heredoc／here-string 內容是資料，只有被 shell 或 DB client 讀取時才檢查；commit message 或 grep 字串裡的 SQL 不會觸發。
 - 權限模式：官方文件載明 hook 的 `ask` 在 auto 模式仍會跳確認；headless `-p` 會直接拒絕（本機以 `claude -p --plugin-dir` 實測 `git stash clear` 被列入 `permission_denials`）；`bypassPermissions` 下的行為文件未寫明（issue #37420 回報會跳確認，且之後該 session 不再是 bypass）。
 - 定位：抓 agent 實際會寫出的破壞性寫法的絆線，不是防有人刻意藏指令的安全邊界；靜態解析永遠有漏網寫法，發現就補測試再補規則。
@@ -95,7 +108,7 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 
 ### Run resume（2.1）
 
-- **SessionStart `compact`**（`run-resume.js`）：只有在 context 壓縮後、且從工作目錄往上到 repo 根（或 `CLAUDE_PROJECT_DIR`）找到帶 `Done means:` 行、code fence 外還有未完成項的 `TASKS.md` 時，注入一行指標（檔案路徑與 open／done 數量）要求先重讀。其他時候完全靜默，不注入任何政策。
+- **SessionStart `compact`**（`run-resume.js`）：只有在 context 壓縮後、且從工作目錄往上到 repo 根（或 `CLAUDE_PROJECT_DIR`）找到帶 `Done means:` 行（autonomy 區塊規定的長任務格式）、code fence 外還有未完成項的 `TASKS.md` 時，注入一行指標（檔案路徑與 open／done 數量）要求先重讀。其他時候完全靜默，不注入任何政策。
 
 ## 測試（plugin 當 production 對待）
 
@@ -141,27 +154,24 @@ plugins/
     hooks/
       hooks.json            # PreToolUse(Agent|Task, Workflow, Bash|PowerShell) + SessionStart(compact)
       scripts/
-        tier-agent.js       # spawn 未帶 model → 改寫為 opus/sonnet
-        tier-workflow.js    # 驗證 workflow script 的 agent() 都有分級
-        destructive-guard.js # 破壞性 shell 指令一律 ask
+        tier-agent.js       # spawn 未帶 model → opus/sonnet；fable → opus
+        tier-workflow.js    # 驗證 workflow script 的 agent() 都有分級、沒有 fable
+        destructive-guard.js # 破壞性 shell 指令 ask；本機 git 看 git status
         run-resume.js       # 壓縮後指回 TASKS.md
         tier.test.js        # model-tiering hook 行為測試
-    agents/                 # 七人編制（scout/researcher/implementer/reviewer/second-opinion/verifier/codex-implementer）
+    agents/                 # 六人編制（scout/researcher/implementer/reviewer/second-opinion/verifier）
     commands/               # doctor / codex-status / codex-result / codex-cancel
     templates/
-      claude-md-autonomy.md # doctor --install 裝進 ~/.claude/CLAUDE.md 的 stop rule＋回報格式
+      claude-md-autonomy.md # doctor --install 裝進 ~/.claude/CLAUDE.md：stop rule、長任務、fan-out、design 清單、回報格式
       design-avoid.md       # design 禁用清單種子
     scripts/
       doctor.mjs            # Opus 5.5 playbook 檢查＋--install
       codex-job.mjs         # workspace-scoped start/status/result/cancel job UX
       codex-jsonl-runner.mjs # Codex events＋telemetry JSONL／artifact／process-tree runner
+      codex-ratelimit.js    # Codex 5h／週配額快照（codex-run 用）
     skills/
       review-loop/          # 多家族隔離審查 + judge 的工作單位迴圈（2.0 核心）；second-family.md = 第二家族 reviewer 配方
-      long-run/             # 長任務合約＋TASKS.md＋Blocked-on-me 回報（2.1）
-      fan-out/              # 每單位一個 subagent、驗證證據、一張表（2.1）
-      design-brief/         # 累積式設計禁用清單（2.1）
       codex-run/
-      handoff/
     tests/
       codex-job.test.mjs
       codex-jsonl-runner.test.mjs
@@ -171,6 +181,7 @@ plugins/
       e2e.test.mjs          # LASK_E2E=1 headless 驗證
 archive/
   lask-1.8/                 # 退役的 director／playbooks／fable-sense（含 eval）／debugger
+  lask-2.1/                 # 2.2 退役的 long-run／fan-out／design-brief（併入 autonomy 區塊）、handoff、codex-implementer
 docs/superpowers/           # 1.x 設計文件（歷史）
 README.md
 ```

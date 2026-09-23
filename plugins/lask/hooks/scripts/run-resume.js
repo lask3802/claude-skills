@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // SessionStart hook (matcher: compact). After a context compaction, point the session back
 // at the run's checklist so the summary never replaces it as the state of a long run.
-// Silent unless a lask:long-run TASKS.md (it carries a `Done means:` line) with open items
+// Silent unless a long-run TASKS.md (it carries a `Done means:` line, per the lask autonomy block) with open items
 // exists in the working directory or a parent up to the project root. The nearest live one
 // wins. One pointer, no policy.
 // Fail-open: on any error, exit 0 with no output.
@@ -16,7 +16,8 @@ function counts(src) {
   return {
     open: (text.match(/^\s*[-*] \[ \]/gm) || []).length,
     done: (text.match(/^\s*[-*] \[[xX]\]/gm) || []).length,
-    contract: /^\s*(?:[-*>]\s+)?(?:\*\*|__)?Done means:/im.test(text),
+    // `Done means:` as a plain line, a list item, a heading or in bold (`**Done means**:` too).
+    contract: /^\s*(?:[-*>]\s+)?(?:#{1,6}\s+)?(?:\*\*|__)?Done means(?:\*\*|__)?\s*:/im.test(text),
   };
 }
 
@@ -54,7 +55,7 @@ function main(raw) {
     const c = counts(src);
     if (!c.contract || !c.open) continue; // not a live long-run file: keep looking toward the root
     const context =
-      `lask long-run: the context was just compacted. This run's checklist is ${file} ` +
+      `lask run-resume: the context was just compacted. This run's checklist is ${file} ` +
       `(${c.open} open, ${c.done} done). Re-read it before the next action; the file, not the summary, is the state.`;
     process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: context } }));
     return;
