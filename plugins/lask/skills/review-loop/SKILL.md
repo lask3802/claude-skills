@@ -33,7 +33,12 @@ review/verify dispatches, i.e. the half that pays was the half not used.)
      The best single reviewer in the validation run found 60% of the defects.
    - Claude: `lask:reviewer`. Second family: `lask:second-opinion` (Codex), or any
      headless agent CLI in a read-only mode — see `second-family.md` in this skill's
-     directory for tested recipes, time boxes, and how to recover output.
+     directory for tested recipes, time boxes, and how to recover output. The opencode
+     standard is `opencode-go/glm-5.3-flash`; the full command, time box, and the
+     brief-inside-the-workspace rule are in `second-family.md`.
+   - `lask:second-opinion` checks Codex quota before it starts. On `QUOTA-STOP`, run the
+     opencode standard in its place now; if the unit is worth a Codex pass too, re-dispatch
+     second-opinion after the reset time it reported.
    - Every reviewer gets the **identical** brief (template below) and nothing else:
      not the other reviews, not the implementer's report, not your opinion of the work.
 4. **Adjudicate — the main session's job, not a substitute for a reviewer.** Check each
