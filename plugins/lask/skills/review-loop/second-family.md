@@ -30,7 +30,7 @@ all models in parallel, one run each.
 | Claude `lask:reviewer` | 8/8 | 8/8 | ~1.5 min | Also caught the append-only trigger turning one change into a crash. |
 | `glm-5.3-flash` | 8/8 | 8/8 | 2 min | **opencode standard**, and the fallback when Codex reports `QUOTA-STOP`. Cheapest in the Go lineup ($0.15/$0.50 per M). |
 | `mimo-v2.6-pro` | 8/8 | 8/8 | 11 min | Backup; slow but complete. |
-| `openrouter/openai/gpt-6-sol#high` (opencode2 + OpenRouter) | — | 8/8 | 3 min | Also caught the append-only trigger, and ran Python in the workspace to check `Jsonb(None)`. `#high` is a real variant: an unknown one fails with `Variant unavailable`. Pay-per-token; cost per review not measured. The Codex family without the Codex CLI quota. |
+| `openrouter/openai/gpt-6-sol#high` (opencode2 + OpenRouter) | — | 8/8 | 3 min | Also caught the append-only trigger, and ran Python in the workspace to check `Jsonb(None)`. `#high` is a real variant: an unknown one fails with `Variant unavailable`. Pay-per-token: about $0.27 for this review (OpenRouter daily total $0.275, incl. a one-line smoke test). The Codex family without the Codex CLI quota. |
 | `glm-5.3` | 8/8 | 7/8 | 9 min | Saw the `date` change but ruled it out ("no date columns"). |
 | `kimi-k3` | 8/8 | 7/8 | 7.5 min | Same demotion as glm-5.3; round 1 findings lacked path:line; priciest ($3/$15). |
 | `minimax-m3` | — | 7/8 | 3 min | Argued `Jsonb(evidence)` vs `Jsonb(evidence or {})` was equivalent — a confident miss. |
