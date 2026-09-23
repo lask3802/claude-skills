@@ -75,6 +75,18 @@ test("model and effort pins match each role (review-loop tier table)", () => {
   assert.match(read("skills/review-loop/SKILL.md"), /final-message file/, "review-loop must adjudicate Codex from its raw output");
 });
 
+test("second-opinion checks Codex quota first and review-loop names the measured fallbacks", () => {
+  const so = read("agents/second-opinion.md");
+  assert.match(so, /codex-ratelimit\.js/, "preflight must read the rate-limit snapshot");
+  assert.match(so, /QUOTA-STOP/, "an exhausted quota must stop before the review starts");
+  assert.match(so, /stale/, "a stale snapshot must trigger the probe, not a blind start");
+  assert.match(so, /window_minutes/, "report the window length: the script labels the weekly window primary_5h");
+  const loop = read("skills/review-loop/SKILL.md");
+  for (const m of ["QUOTA-STOP", "opencode-go/glm-5.3-flash", "openrouter/openai/gpt-6-sol#high"])
+    assert.ok(loop.includes(m), `review-loop must name ${m}`);
+  assert.match(read("skills/review-loop/second-family.md"), /\| 8\/8 \| 8\/8 \| 2 min/, "the benchmark table must stay");
+});
+
 test("tool restrictions match each agent's mandate", () => {
   const tools = Object.fromEntries(
     AGENTS.map((a) => [a, parseFrontmatter(read(`agents/${a}.md`)).fm.tools]),
@@ -171,10 +183,10 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop"]);
 });
 
-test("plugin.json is 2.4.0 and describes the roster, the review loop, the output style and the playbook layer", () => {
+test("plugin.json is 2.4.1 and describes the roster, the review loop, the output style and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.4.0");
+  assert.equal(pkg.version, "2.4.1");
   assert.match(pkg.description, /review-loop/);
   assert.match(pkg.description, /TW Hybrid output style/);
   assert.match(pkg.description, /doctor/);

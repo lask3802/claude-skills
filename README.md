@@ -48,6 +48,17 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.4.1：Codex 額度預檢與第二家族替補
+
+問題是 Codex 的額度常在審查跑到一半時用完：已經花掉的額度拿不回來，也沒有結果。現在 `lask:second-opinion` 開跑前先讀 `codex-ratelimit.js` 的快照，任何一個視窗剩不到 10%、而且重置時間還沒到，就回報 `QUOTA-STOP` 和重置時間，不開跑。這個快照只有在 Codex 執行時才會更新，通常已經過期好幾天，所以過期時會先用 low effort 探測一次，探測成功後重讀快照再判斷。腳本會把週額度標成 `primary_5h`，因此回報時一律附上視窗分鐘數。
+
+review-loop 收到 `QUOTA-STOP` 就立刻換人，不等重置。替補是在 2026-09-23 用植入缺陷的基準測過的兩個選擇，都透過 `opencode2 run --agent plan` 執行：
+
+- **`opencode-go/glm-5.3-flash`**：約 2 分鐘，走 Go 訂閱，兩輪都 8/8。
+- **`openrouter/openai/gpt-6-sol#high`**：約 3 分鐘、約 $0.27，8/8，而且會抓到 diff 以外的後果（例如 schema trigger 讓 replay 直接丟例外）。
+
+完整結果表在 `second-family.md`；含原始碼的實驗紀錄不放進這個公開 repo。
+
 ## 2.4：TW Hybrid output style
 
 回覆改用 `lask:TW Hybrid` 這個 output style：結論和推理用說話的口吻寫成段落，並列的事實用對稱結構排好。依據是 2026-09-23 兩輪盲測（紀錄只在當時的 session 裡，不在這個 repo）。第一輪把 Default、Concise、Simplified Technical Writing、TW Colleague 四篇並排比較，但先讀的那篇會替後面幾篇建好心智模型，「好懂」就沒辦法比。第二輪改成每題只讀一篇、讀完就打分，比的是 Concise、TW Colleague、TW Hybrid：TW Hybrid 在「好懂」拿 5 分、「像人在講話」拿 4 分，另外兩個都是 3／2。每個 style 只有一篇，題目也不同，TW Hybrid 那篇還長一倍，篇幅本身可能影響分數，所以這只能算方向。讀者寫的理由比分數更有用，style 裡的兩條規則就是從這裡來的：
@@ -100,7 +111,7 @@ style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin
 | `lask:researcher` | opus | 外部研究：官方文件、API、生態系（唯讀＋web） |
 | `lask:implementer` | opus | 依規格實作＋自測義務（附指令與結果證據）；也擔任 review loop 的 fixer |
 | `lask:reviewer` | opus（effort high） | 對抗式審查：假設變更是錯的，以規格行號為準，severity 分級、每條附失敗情境 |
-| `lask:second-opinion` | haiku | 跨模型審查：唯讀沙箱跑 Codex CLI，brief 原文照抄給 Codex，以 event＋telemetry JSONL 顯示過程並忠實轉述；主 session 以 Codex 的原始 final-message 檔逐條裁決（haiku 只做轉述，判斷在 Codex 與主 session） |
+| `lask:second-opinion` | haiku | 跨模型審查：開跑前先檢查 Codex 額度（不足就回報 `QUOTA-STOP`），唯讀沙箱跑 Codex CLI，brief 原文照抄給 Codex，以 event＋telemetry JSONL 顯示過程並忠實轉述；主 session 以 Codex 的原始 final-message 檔逐條裁決（haiku 只做轉述，判斷在 Codex 與主 session） |
 | `lask:verifier` | opus（effort medium） | 驗收官／judge：逐條執行驗收，只回報事實、絕不動手修；擔任 judge 時也檢查 judge 本身是否驗證過 |
 
 所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes（僅 implementer）／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
