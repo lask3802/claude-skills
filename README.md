@@ -11,7 +11,7 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 /plugin install lask@claude-skills
 ```
 
-安裝後 skill 會自動啟用（必要時重啟 Claude Code 或執行 `/reload-plugins`）。接著執行一次 `/lask:doctor --install`，把 stop rule 裝進 `~/.claude/CLAUDE.md` 並建立 design 禁用清單；之後隨時用 `/lask:doctor` 檢查。
+安裝後 skill 會自動啟用（必要時重啟 Claude Code 或執行 `/reload-plugins`）。接著執行一次 `/lask:doctor --install`，把 stop rule 裝進 `~/.claude/CLAUDE.md`、建立 design 禁用清單，並在沒有選 output style 時選用 `lask:TW Hybrid`；之後隨時用 `/lask:doctor` 檢查。
 
 > CLI 等效指令（非互動式）：
 > ```
@@ -47,6 +47,20 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 研究要標出無法確認的部分 | `lask:researcher` 與 autonomy 區塊：每個無法確認的主張都標出來，並說明查過哪裡 |
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
+
+## 2.4：TW Hybrid output style
+
+回覆改用 `lask:TW Hybrid` 這個 output style：結論和推理用說話的口吻寫成段落，並列的事實用對稱結構排好。依據是 2026-09-23 兩輪盲測（紀錄只在當時的 session 裡，不在這個 repo）。第一輪把 Default、Concise、Simplified Technical Writing、TW Colleague 四篇並排比較，但先讀的那篇會替後面幾篇建好心智模型，「好懂」就沒辦法比。第二輪改成每題只讀一篇、讀完就打分，比的是 Concise、TW Colleague、TW Hybrid：TW Hybrid 在「好懂」拿 5 分、「像人在講話」拿 4 分，另外兩個都是 3／2。每個 style 只有一篇，題目也不同，TW Hybrid 那篇還長一倍，篇幅本身可能影響分數，所以這只能算方向。讀者寫的理由比分數更有用，style 裡的兩條規則就是從這裡來的：
+
+- **機制先講防什麼問題，再講怎麼運作**：TW Colleague 輸在「前因後果太少」，不是口吻不夠口語。
+- **專案內部名詞第一次出現就用半句話說明**：Concise 輸在直接用了讀者不熟的名詞（spool）。
+
+style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin 只負責提供 style，選用要靠設定，而 `/output-style` 只會寫進專案層的 `.claude/settings.local.json`。所以 `/lask:doctor --install` 會在使用者層的 `settings.json`（`~/.claude/`，或 `CLAUDE_CONFIG_DIR`）寫入 `lask:TW Hybrid`，改檔前先備份。同一層的 `settings.json` 或 `settings.local.json` 已經選了別的 style 就不動；專案層的選擇只影響那個專案，不會擋住寫入。doctor 檢查會依優先順序列出實際生效的是哪一個；settings 不是純 JSON 時不寫入，改成請你手動修。沒有用 `force-for-plugin`，因為它會蓋掉使用者的選擇，連臨時切到 Explanatory 都不行。
+
+它只影響直接對你說話的 main agent：
+
+- **有套用**：互動 session，以及沒帶 `--setting-sources` 的 `claude -p`。
+- **不套用**：subagent（官方行為，fork 除外；main agent 轉述時本來就會重寫）、用 `--setting-sources ''` 啟動的 worker 子程序（實測確認）。
 
 ## 2.3：依角色固定 effort
 
@@ -167,6 +181,8 @@ plugins/
         destructive-guard.js # 破壞性 shell 指令 ask；本機 git 看 git status
         run-resume.js       # 壓縮後指回 TASKS.md
         tier.test.js        # model-tiering hook 行為測試
+    output-styles/
+      tw-hybrid.md          # lask:TW Hybrid：說話的口吻講因果，並列事實用對稱結構
     agents/                 # 六人編制（scout/researcher/implementer/reviewer/second-opinion/verifier）
     commands/               # doctor / codex-status / codex-result / codex-cancel
     templates/

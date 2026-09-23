@@ -1,5 +1,5 @@
 ---
-description: Audit this Claude Code setup against the Opus 5.5 playbook checklist; --install adds the managed stop rule to CLAUDE.md
+description: Audit this Claude Code setup against the Opus 5.5 playbook checklist; --install adds the managed stop rule to CLAUDE.md and selects the lask:TW Hybrid output style when none is set
 argument-hint: "[--install] [--force] [--json]"
 allowed-tools: Bash
 disable-model-invocation: true

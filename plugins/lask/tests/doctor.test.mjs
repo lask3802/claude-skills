@@ -294,6 +294,71 @@ test("settings: disableAllHooks fails the guard check; switchModelsOnFlag and fe
   }
 });
 
+test("--install selects the plugin output style once, keeping other settings, CRLF and a backup", () => {
+  const box = sandbox();
+  try {
+    const file = path.join(box.claudeDir, "settings.json");
+    const original = '{\r\n  "model": "opus",\r\n  "permissions": {\r\n    "allow": []\r\n  }\r\n}\r\n';
+    fs.writeFileSync(file, original);
+    assert.equal(doctor(box).byId["output-style"].status, "WARN");
+    const r = doctor(box, "--install");
+    const after = fs.readFileSync(file, "utf8");
+    assert.deepEqual(JSON.parse(after), { model: "opus", permissions: { allow: [] }, outputStyle: "lask:TW Hybrid" });
+    assert.ok(!/[^\r]\n/.test(after), "line endings follow the file (CRLF)");
+    const backups = fs.readdirSync(box.claudeDir).filter((f) => f.startsWith("settings.json.bak-lask-"));
+    assert.equal(backups.length, 1);
+    assert.equal(fs.readFileSync(path.join(box.claudeDir, backups[0]), "utf8"), original, "backup is the exact original");
+    assert.equal(r.byId["output-style"].status, "PASS");
+    assert.match(r.byId["output-style"].detail, /\(user\)/);
+    const again = doctor(box, "--install");
+    assert.match(again.actions.join("\n"), /kept outputStyle "lask:TW Hybrid"/);
+    assert.equal(fs.readFileSync(file, "utf8"), after, "second run changes nothing");
+  } finally {
+    box.done();
+  }
+});
+
+test("an output style chosen elsewhere is kept, and unreadable settings are never rewritten", () => {
+  const box = sandbox();
+  try {
+    const file = path.join(box.claudeDir, "settings.json");
+    fs.writeFileSync(file, JSON.stringify({ outputStyle: "Explanatory" }));
+    const r = doctor(box, "--install");
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).outputStyle, "Explanatory");
+    assert.equal(r.byId["output-style"].status, "INFO");
+    fs.mkdirSync(path.join(box.cwd, ".claude"), { recursive: true });
+    fs.writeFileSync(path.join(box.cwd, ".claude", "settings.local.json"), JSON.stringify({ outputStyle: "lask:TW Hybrid" }));
+    assert.match(doctor(box).byId["output-style"].detail, /project local/, "highest-precedence source wins");
+    fs.writeFileSync(file, "{ not json");
+    const broken = doctor(box, "--install");
+    assert.match(broken.actions.join("\n"), /not a JSON object; outputStyle was not set/);
+    assert.equal(fs.readFileSync(file, "utf8"), "{ not json");
+  } finally {
+    box.done();
+  }
+});
+
+test("output style: creates missing settings, respects user-local, reads a BOM, and asks for a hand fix on bad JSON", () => {
+  const box = sandbox();
+  try {
+    const file = path.join(box.claudeDir, "settings.json");
+    doctor(box, "--install");
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), { outputStyle: "lask:TW Hybrid" }, "missing file is created");
+    fs.writeFileSync(file, "﻿" + JSON.stringify({ model: "opus" }));
+    fs.writeFileSync(path.join(box.claudeDir, "settings.local.json"), JSON.stringify({ outputStyle: "Explanatory" }));
+    const local = doctor(box, "--install");
+    assert.match(local.actions.join("\n"), /kept outputStyle "Explanatory" in .*settings\.local\.json/);
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8").replace(/^﻿/, "")).outputStyle, undefined, "a user-local choice blocks the write");
+    fs.rmSync(path.join(box.claudeDir, "settings.local.json"));
+    assert.equal(doctor(box).byId["output-style"].status, "WARN", "a BOM file still parses: plain no-style warning");
+    assert.match(doctor(box).byId["output-style"].fix, /--install \(sets it/);
+    fs.writeFileSync(file, "{ not json");
+    assert.match(doctor(box).byId["output-style"].fix, /fix the JSON by hand/, "no fix that --install cannot perform");
+  } finally {
+    box.done();
+  }
+});
+
 test("LASK_GUARD=0 turns the guard check into a warning", () => {
   const box = sandbox();
   try {

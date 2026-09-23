@@ -63,6 +63,10 @@ function parseArgs(argv) {
   return args;
 }
 
+// Plugin output styles are namespaced by the plugin name (output-styles/tw-hybrid.md -> "lask:TW Hybrid").
+export const OUTPUT_STYLE = "lask:TW Hybrid";
+const chosenStyle = (s) => s?.outputStyle !== undefined && s?.outputStyle !== null && s?.outputStyle !== "";
+
 const lf = (s) => s.replace(/\r\n/g, "\n");
 const sha = (s) => crypto.createHash("sha256").update(lf(s).trim()).digest("hex").slice(0, 12);
 
@@ -78,7 +82,7 @@ function readJson(file) {
   const src = readText(file);
   if (src == null) return null;
   try {
-    return JSON.parse(src);
+    return JSON.parse(src.replace(/^﻿/, "")); // PowerShell 5.1 Set-Content -Encoding UTF8 writes a BOM
   } catch {
     return null;
   }
@@ -274,6 +278,16 @@ export function runChecks({ claudeDir, cwd }) {
     add("design-avoid", "PASS", "design requests carry a list of styles to leave out", `${n} pattern(s) in ${avoid}`);
   } else add("design-avoid", "WARN", "no user-wide design avoid list", avoid, "/lask:doctor --install (seeds it)");
 
+  // 5b. Output style: the plugin ships one; a setting has to select it on each machine.
+  const style = setting(claudeDir, cwd, (s) => (chosenStyle(s) ? s.outputStyle : undefined));
+  const userSettings = path.join(claudeDir, "settings.json");
+  if (style.value === OUTPUT_STYLE) add("output-style", "PASS", `replies use the ${OUTPUT_STYLE} output style`, `outputStyle (${style.scope})`);
+  else if (style.value !== undefined)
+    add("output-style", "INFO", "output style chosen elsewhere", `outputStyle: ${JSON.stringify(style.value)} (${style.scope}); kept — lask also ships ${OUTPUT_STYLE}`);
+  else if (readText(userSettings) != null && readJson(userSettings) == null)
+    add("output-style", "WARN", "no output style selected, and user settings are not plain JSON", userSettings, "fix the JSON by hand, then /lask:doctor --install");
+  else add("output-style", "WARN", "no output style selected", `lask ships ${OUTPUT_STYLE}: spoken conclusions, cause before procedure, symmetric facts`, `/lask:doctor --install (sets it in ${userSettings})`);
+
   // 6. Task list in a file (informational: only a run in progress has one).
   const tasks = readText(path.join(cwd, "TASKS.md"));
   if (tasks != null) {
@@ -336,6 +350,30 @@ export function install({ claudeDir, force }) {
     fs.copyFileSync(path.join(PLUGIN_ROOT, "templates", "design-avoid.md"), avoid);
     actions.push(`seeded ${avoid}`);
   } else actions.push(`kept existing ${avoid}`);
+
+  // Select the plugin's output style only where none is chosen: /output-style writes project-local
+  // settings, so user-wide selection has to live in the user settings file.
+  const settingsFile = path.join(claudeDir, "settings.json");
+  const settingsSrc = readText(settingsFile);
+  const settings = settingsSrc == null ? {} : readJson(settingsFile);
+  const userLocal = path.join(claudeDir, "settings.local.json");
+  if (settings == null || typeof settings !== "object" || Array.isArray(settings))
+    actions.push(`${settingsFile} is not a JSON object; outputStyle was not set`);
+  else if (chosenStyle(settings)) actions.push(`kept outputStyle ${JSON.stringify(settings.outputStyle)} in ${settingsFile}`);
+  else if (chosenStyle(readJson(userLocal))) actions.push(`kept outputStyle ${JSON.stringify(readJson(userLocal).outputStyle)} in ${userLocal}`);
+  else try {
+    const eol = settingsSrc && settingsSrc.includes("\r\n") ? "\r\n" : "\n";
+    if (settingsSrc != null) {
+      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "");
+      fs.copyFileSync(settingsFile, `${settingsFile}.bak-lask-${stamp}`);
+      actions.push(`backed up ${settingsFile} -> ${settingsFile}.bak-lask-${stamp}`);
+    }
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(settingsFile, (JSON.stringify({ ...settings, outputStyle: OUTPUT_STYLE }, null, 2) + "\n").replace(/\n/g, eol));
+    actions.push(`set outputStyle "${OUTPUT_STYLE}" in ${settingsFile}`);
+  } catch (e) {
+    actions.push(`could not write ${settingsFile} (${e.code ?? e.message}); outputStyle was not set`);
+  }
   return actions;
 }
 

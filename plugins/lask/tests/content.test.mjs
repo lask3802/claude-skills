@@ -22,6 +22,20 @@ export function parseFrontmatter(src) {
   return { fm, body: m[2] };
 }
 
+test("the TW Hybrid output style carries the rules its blind test picked", () => {
+  assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "output-styles")), ["tw-hybrid.md"]);
+  const { fm, body } = parseFrontmatter(read("output-styles/tw-hybrid.md"));
+  // The name is what users select: plugin styles are namespaced, so settings say "lask:TW Hybrid".
+  assert.equal(fm.name, "TW Hybrid");
+  assert.equal(fm["keep-coding-instructions"], "true");
+  assert.ok(fm.description && fm.description.length >= 10);
+  assert.match(body, /cause\s+before\s+the\s+procedure/, "mechanisms: why before how (the reader's top complaint)");
+  assert.match(body, /project-internal\s+name/, "internal names explained on first use");
+  assert.match(body, /symmetric\s+structure/, "parallel facts laid out for comparison");
+  assert.match(body, /report\s+format\s+the\s+user's\s+instructions\s+define\s+stay/, "never overrides the user's own report format");
+  assert.match(read("scripts/doctor.mjs"), /OUTPUT_STYLE = "lask:TW Hybrid"/, "doctor selects the shipped name");
+});
+
 const AGENTS = [
   "scout",
   "researcher",
@@ -157,11 +171,12 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop"]);
 });
 
-test("plugin.json is 2.3.0 and describes the roster, the review loop and the playbook layer", () => {
+test("plugin.json is 2.4.0 and describes the roster, the review loop, the output style and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.3.0");
+  assert.equal(pkg.version, "2.4.0");
   assert.match(pkg.description, /review-loop/);
+  assert.match(pkg.description, /TW Hybrid output style/);
   assert.match(pkg.description, /doctor/);
   assert.match(pkg.description, /destructive-command guard/);
   assert.doesNotMatch(pkg.description, /director|fable-sense|long-run|fan-out|design-brief|handoff|Codex implementer/i,

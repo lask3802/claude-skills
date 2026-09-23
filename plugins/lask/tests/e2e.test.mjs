@@ -1,6 +1,8 @@
 // Headless end-to-end checks. Cost tokens; run explicitly:
 //   LASK_E2E=1 node --test plugins/lask/tests/e2e.test.mjs                        (pre-install: repo working copy via --plugin-dir)
 //   LASK_E2E=1 LASK_E2E_INSTALLED=1 node --test plugins/lask/tests/e2e.test.mjs    (post-install: user-scope plugin, no --plugin-dir)
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -11,13 +13,14 @@ const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const ENABLED = process.env.LASK_E2E === "1";
 const INSTALLED = process.env.LASK_E2E_INSTALLED === "1";
 
-function claude(prompt, extraEnv = {}) {
+function claude(prompt, extraEnv = {}, extraArgs = []) {
   // shell:true on Windows: claude is a .cmd shim, which modern Node refuses to
   // spawn directly (CVE-2024-27980). None of our args contain spaces or quotes,
   // and the prompt travels via stdin, so shell joining is safe here.
   const args = [
     ...(INSTALLED ? [] : ["--plugin-dir", PLUGIN_ROOT]),
     "--model", "sonnet",
+    ...extraArgs,
     "-p",
   ];
   return execFileSync("claude", args, {
@@ -53,6 +56,19 @@ test("e2e: the lask skills are registered", { skip: !ENABLED && "set LASK_E2E=1"
   for (const s of ["review-loop", "codex-run"])
     assert.match(out, new RegExp(`lask:${s}`), `skill lask:${s} must be listed`);
   assert.doesNotMatch(out, /lask:(?:handoff|long-run|fan-out|design-brief)\b/, "2.2 retired these skills");
+});
+
+// The plugin ships its output style under the plugin namespace; doctor --install selects this name.
+test("e2e: the lask:TW Hybrid output style loads", { skip: !ENABLED && "set LASK_E2E=1" }, () => {
+  // Settings go through a file: the Windows shell join would split an inline JSON argument.
+  const settings = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "lask-e2e-")), "settings.json");
+  fs.writeFileSync(settings, JSON.stringify({ outputStyle: "lask:TW Hybrid" }));
+  const out = claude(
+    'Quote the name that follows "# Output Style:" in your context, or NONE if there is no such line. Nothing else.',
+    {},
+    ["--settings", settings],
+  );
+  assert.match(out, /lask:TW Hybrid/);
 });
 
 // Optional dispatch-proof: headless spawn of lask:scout that must echo a sentinel back
