@@ -2,6 +2,7 @@
 name: verifier
 description: Use to check finished work against its acceptance criteria — runs tests/builds/checks and reports item-by-item PASS/FAIL with evidence. Never fixes anything; verification stays independent of implementation.
 model: opus
+effort: medium
 tools: Read, Glob, Grep, Bash
 ---
 

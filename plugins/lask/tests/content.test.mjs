@@ -41,12 +41,24 @@ test("every agent has sound frontmatter and the shared contracts", () => {
     const { fm, body } = parseFrontmatter(read(`agents/${name}.md`));
     assert.equal(fm.name, name, `${name}: frontmatter name must match filename`);
     assert.ok(fm.description && fm.description.length >= 40, `${name}: description too short to guide dispatch`);
-    assert.ok(["sonnet", "opus"].includes(fm.model), `${name}: model must be sonnet or opus, never fable`);
+    assert.ok(["haiku", "sonnet", "opus"].includes(fm.model), `${name}: model must be haiku, sonnet or opus, never fable`);
     assert.match(body, /## Report protocol/, `${name}: must embed the report protocol`);
     assert.match(body, /path:line/, `${name}: must state the clickable path:line rule`);
     assert.match(body, /## Verdict/, `${name}: report must lead with a Verdict section`);
     assert.match(body, /Open questions/, `${name}: report must surface open questions`);
   }
+});
+
+test("model and effort pins match each role (review-loop tier table)", () => {
+  const fms = Object.fromEntries(AGENTS.map((a) => [a, parseFrontmatter(read(`agents/${a}.md`)).fm]));
+  const pins = { scout: "medium", verifier: "medium", reviewer: "high", implementer: undefined, researcher: undefined, "second-opinion": undefined };
+  for (const [name, effort] of Object.entries(pins)) {
+    assert.equal(fms[name].effort, effort, `${name}: effort pin`);
+  }
+  // Only the Codex relay runs below opus; its raw output is what the director adjudicates.
+  for (const name of AGENTS) assert.equal(fms[name].model, name === "second-opinion" ? "haiku" : "opus", `${name}: model`);
+  assert.match(read("agents/second-opinion.md"), /verbatim/, "second-opinion must pass the brief through verbatim");
+  assert.match(read("skills/review-loop/SKILL.md"), /final-message file/, "review-loop must adjudicate Codex from its raw output");
 });
 
 test("tool restrictions match each agent's mandate", () => {
@@ -145,10 +157,10 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop"]);
 });
 
-test("plugin.json is 2.2.0 and describes the roster, the review loop and the playbook layer", () => {
+test("plugin.json is 2.3.0 and describes the roster, the review loop and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.2.0");
+  assert.equal(pkg.version, "2.3.0");
   assert.match(pkg.description, /review-loop/);
   assert.match(pkg.description, /doctor/);
   assert.match(pkg.description, /destructive-command guard/);
@@ -283,7 +295,7 @@ test("review-loop skill carries the isolated two-family review, adjudication, ju
   assert.match(body, /not confirmed/i, "single-reviewer findings default to not confirmed");
   assert.match(body, /deliberately broken/i, "the judge must be validated against a broken variant");
   assert.match(body, /third time/i, "recurring failures move upstream");
-  for (const t of ["sonnet", "opus", "tier: reviewed"]) assert.match(body, new RegExp(t), `tier table must mention ${t}`);
+  for (const t of ["haiku", "sonnet", "opus", "tier: reviewed", "\| medium \| 51 \| 53%", "\| high \| 54 \| 57%"]) assert.match(body, new RegExp(t), `tier table must mention ${t}`);
   assert.match(body, /`fable` \| retired/, "the tier table must mark fable as retired, not as a tier");
   assert.match(read("hooks/scripts/tier-workflow.js"), /lask:review-loop/, "the workflow deny reason must point here");
   assert.match(body, /different model families/i, "reviewers must come from different families");

@@ -48,6 +48,14 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.3：依角色固定 effort
+
+依 Artificial Analysis 各 effort 等級的實測（2026-09-23，Opus 5.5）：Intelligence Index low 42 → medium 51 → high 54 → xhigh 56 → max 58；Terminal-Bench 4.0 為 31% → 53% → 57% → 60% → 60%，每題成本 $0.55 → $1.34 → $1.82 → $3.46 → $5.98。high 以上每升一級約翻倍成本、只多 0–3 分；low 在工具操作上掉 22 分（53% → 31%）。
+
+- **agent frontmatter 固定 `effort`**：`scout`、`verifier` → medium；`reviewer` → high；`implementer`、`researcher` 不固定，跟著 session 的 `/effort` 走。Agent 呼叫無法覆蓋 effort，所以只固定角色性質明確的。本機 transcript 顯示中途改 effort 不會讓 prompt cache 失效（6 個 session 在 TTL 內改 effort，下一個 request 的 cache_read 都延續前一輪）。實測 `--effort low` 的主 session 派出的 `lask:reviewer` 跑在 high。
+- **`second-opinion` 改用 haiku**：它只是 Codex 的轉述；brief 原文照抄給 Codex，review-loop 的裁決改以 Codex 原始 final-message 檔為準，轉述只當索引。
+- review-loop 的 tier 表加上 haiku 與 effort 對照表，並註明 sonnet 不適合多步驟工具工作（Terminal-Bench 4.0：Sonnet 5 high 5%、max 14%）。
+
 ## 2.2：只留 CLAUDE.md 做不到的部分
 
 2.1 把 playbook 的每一項都做成元件，但那篇文章的建議多半是「在 prompt 或 CLAUDE.md 講一句」。2.2 用實測決定去留（2026-09-23，`claude -p` 第一次呼叫的實際 token 數，搭配 60 天、524 個 session 的使用紀錄）：
@@ -74,12 +82,12 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 
 | Agent | model | 職責 |
 |---|---|---|
-| `lask:scout` | opus | 內部偵察：讀碼、盤結構與現況，回報精煉簡報（唯讀） |
+| `lask:scout` | opus（effort medium） | 內部偵察：讀碼、盤結構與現況，回報精煉簡報（唯讀） |
 | `lask:researcher` | opus | 外部研究：官方文件、API、生態系（唯讀＋web） |
 | `lask:implementer` | opus | 依規格實作＋自測義務（附指令與結果證據）；也擔任 review loop 的 fixer |
-| `lask:reviewer` | opus | 對抗式審查：假設變更是錯的，以規格行號為準，severity 分級、每條附失敗情境 |
-| `lask:second-opinion` | sonnet | 跨模型審查：唯讀沙箱跑 Codex CLI，以 event＋telemetry JSONL 顯示過程並忠實轉述，採納與否由主 session 逐條裁決（sonnet 只做轉述，判斷在 Codex 與主 session） |
-| `lask:verifier` | opus | 驗收官／judge：逐條執行驗收，只回報事實、絕不動手修；擔任 judge 時也檢查 judge 本身是否驗證過 |
+| `lask:reviewer` | opus（effort high） | 對抗式審查：假設變更是錯的，以規格行號為準，severity 分級、每條附失敗情境 |
+| `lask:second-opinion` | haiku | 跨模型審查：唯讀沙箱跑 Codex CLI，brief 原文照抄給 Codex，以 event＋telemetry JSONL 顯示過程並忠實轉述；主 session 以 Codex 的原始 final-message 檔逐條裁決（haiku 只做轉述，判斷在 Codex 與主 session） |
+| `lask:verifier` | opus（effort medium） | 驗收官／judge：逐條執行驗收，只回報事實、絕不動手修；擔任 judge 時也檢查 judge 本身是否驗證過 |
 
 所有 agent 以統一回報協議收尾（Verdict／Evidence／Changes（僅 implementer）／Self-assessment／Open questions），引用檔案一律可點擊的 `path:line`，長產出寫檔、回報只留摘要。
 

@@ -2,6 +2,7 @@
 name: reviewer
 description: Use for first-pass code review of a diff, branch, or file set — correctness first, then risk, then maintainability. Returns severity-ranked findings so the director reads only what matters.
 model: opus
+effort: high
 tools: Read, Glob, Grep, Bash
 ---
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PreToolUse hook for the Workflow tool (ultracode dynamic workflows).
 // Policy: every agent() call in a workflow script must carry an explicit model tier
-// (model: 'sonnet' | 'opus') or a pinned agentType, so workflow agents never
+// (model: 'opus' | 'sonnet', or 'haiku' for pure relays) or a pinned agentType, so workflow agents never
 // silently inherit the main-loop model. Fable is retired: a literal
 // model: 'fable' is a violation too.
 //

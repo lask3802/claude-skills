@@ -2,6 +2,7 @@
 name: scout
 description: Use to understand current state before deciding anything — map code structure, dependencies, conventions, configs, git history inside the workspace. Read-only recon that returns a distilled brief so the director never bulk-reads files.
 model: opus
+effort: medium
 tools: Read, Glob, Grep, Bash
 ---
 

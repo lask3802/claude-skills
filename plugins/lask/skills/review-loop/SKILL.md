@@ -41,6 +41,8 @@ review/verify dispatches, i.e. the half that pays was the half not used.)
    reason. A finding only one reviewer raises is not confirmed until you have read the
    cited line. Never blanket-accept, never silently drop. Writing your own quick pass
    down *before* reading the reviews keeps you honest, but do not count it as a review.
+   For `lask:second-opinion`, adjudicate from Codex's own final-message file (its
+   Verdict names the path); the relay's one-liners are an index, not the review.
 5. **Fix confirmed findings only** — the fixer does not re-review or expand scope.
    PARTIALs that are convention questions become a `TODO(port)`/owner question, not an
    edit.
@@ -73,8 +75,24 @@ never by an agent inside the loop.
 | Tier | For |
 |---|---|
 | `opus` — default | implementation, review, research, synthesis |
-| `sonnet` / built-in Explore | mechanical only, checkable by inspection: inventories, extraction, sweeps |
+| `sonnet` / built-in Explore | mechanical only, checkable by inspection: inventories, extraction, sweeps. Not multi-step tool work: Terminal-Bench 4.0 has Sonnet 5 at 5% (high) / 14% (max) vs Opus 5.5 at 31% (low) |
+| `haiku` | pure relays whose raw output the director reads anyway (`lask:second-opinion`) |
 | `fable` | retired for subagents: Opus 5.5 is the better buy, and the hooks move fable spawns to opus |
+
+Effort is pinned per role in agent frontmatter (a spawn cannot override it; unpinned
+agents follow the session's `/effort`). Opus 5.5 on Artificial Analysis, 2026-09-23:
+
+| effort | Intelligence Index | Terminal-Bench 4.0 | $/task | TTFT |
+|---|---|---|---|---|
+| low | 42 | 31% | 0.55 | 5s |
+| medium | 51 | 53% | 1.34 | 23s |
+| high | 54 | 57% | 1.82 | 35s |
+| xhigh | 56 | 60% | 3.46 | 155s |
+| max | 58 | 60% | 5.98 | — |
+
+So: `scout`, `verifier` → medium (low drops 22 points on tool work); `reviewer` → high (each
+step above roughly doubles cost for +0–3 points); `implementer`, `researcher` unpinned
+so the session's effort tracks task difficulty.
 
 Stakes buy **more reviewers from more families**, not a bigger executor. Workflow
 scripts must tier every `agent()` call (`model:` or a pinned `agentType`); add
