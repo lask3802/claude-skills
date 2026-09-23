@@ -1,7 +1,7 @@
 {
   "name": "lask",
-  "version": "2.0.0",
-  "description": "lask's personal Claude Code plugin. Seven-agent roster (scout, researcher, implementer, reviewer, verifier, Codex second-opinion, Codex implementer), the review-loop skill (isolated adversarial review by two or more model families, adjudication, validated judge), hook-enforced model tiering, Codex job UX, and handoff.",
+  "version": "2.1.0",
+  "description": "lask's personal Claude Code plugin. Seven-agent roster (scout, researcher, implementer, reviewer, verifier, Codex second-opinion, Codex implementer), the review-loop skill (isolated adversarial review by two or more model families, adjudication, validated judge), Opus 5.5 playbook skills (long-run, fan-out, design-brief) with a doctor that installs the CLAUDE.md stop rule, a destructive-command guard that keeps a permission prompt in front of destructive shell commands, hook-enforced model tiering, Codex job UX, and handoff.",
   "author": {
     "name": "lask3802"
   },

@@ -155,11 +155,14 @@ test("model-tiers is retired and handoff survives", () => {
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "handoff", "SKILL.md")));
 });
 
-test("plugin.json is 2.0.0 and describes the roster and the review loop", () => {
+test("plugin.json is 2.1.0 and describes the roster, the review loop and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.0.0");
+  assert.equal(pkg.version, "2.1.0");
   assert.match(pkg.description, /review-loop/);
+  assert.match(pkg.description, /long-run/);
+  assert.match(pkg.description, /doctor/);
+  assert.match(pkg.description, /destructive-command guard/);
   assert.doesNotMatch(pkg.description, /director|fable-sense/i, "retired components must not be advertised");
 });
 
@@ -211,18 +214,85 @@ test("Codex job controller and slash commands ship the lightweight lifecycle UX"
   }
 });
 
-test("hooks.json wires only the two tiering hooks, and the director machinery is gone", () => {
+test("hooks.json wires tiering, the destructive guard and the compact-only resume pointer; director machinery is gone", () => {
   const hooks = JSON.parse(read("hooks/hooks.json"));
-  assert.deepEqual(Object.keys(hooks.hooks), ["PreToolUse"], "no SessionStart policy injection in 2.0");
+  assert.deepEqual(Object.keys(hooks.hooks).sort(), ["PreToolUse", "SessionStart"]);
   const flat = JSON.stringify(hooks);
-  for (const s of ["tier-agent.js", "tier-workflow.js"]) {
+  for (const s of ["tier-agent.js", "tier-workflow.js", "destructive-guard.js", "run-resume.js"]) {
     assert.ok(flat.includes(s), `hooks.json must wire ${s}`);
     assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "hooks", "scripts", s)), `${s} must exist`);
   }
+  const guard = hooks.hooks.PreToolUse.find((h) => JSON.stringify(h).includes("destructive-guard.js"));
+  assert.equal(guard.matcher, "^(Bash|PowerShell)$", "the guard must cover both shells");
+  // No policy injection at startup: SessionStart only fires after a compaction, and only points at TASKS.md.
+  for (const entry of hooks.hooks.SessionStart) assert.equal(entry.matcher, "compact", "SessionStart may only fire on compact");
+  assert.doesNotMatch(read("hooks/scripts/destructive-guard.js"), /permissionDecision: 'deny'/, "the guard asks; the user decides");
   assert.doesNotMatch(flat, /director/);
   for (const gone of ["skills/director", "skills/delegation-playbooks", "skills/fable-sense", "agents/debugger.md",
     "commands/director-on.md", "hooks/scripts/director-enforce.js", "hooks/scripts/director-context.js"])
     assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, gone)), `${gone} must be retired to archive/`);
+});
+
+test("playbook skills carry their contracts", () => {
+  for (const name of ["long-run", "fan-out", "design-brief"]) {
+    const { fm } = parseFrontmatter(read(`skills/${name}/SKILL.md`));
+    assert.equal(fm.name, name);
+    assert.match(fm.description, /^Use when /, `${name}: description must state triggering conditions`);
+    assert.match(fm.description, /Not for /, `${name}: description must carry a skip-gate`);
+    assert.ok(fm.description.length <= 400, `${name}: keep the listing short`);
+  }
+  const longRun = read("skills/long-run/SKILL.md");
+  for (const s of ["Done means:", "Stop and ask only if:", "TASKS.md", "Blocked on owner", "## Blocked on me", "## Changed", "## Found", "compaction"])
+    assert.ok(longRun.includes(s), `long-run must carry ${s}`);
+  assert.ok(longRun.indexOf("## Blocked on me") < longRun.indexOf("## Changed"), "what the owner owes comes first");
+  const fanOut = read("skills/fan-out/SKILL.md");
+  for (const s of ["ONE message", "could not confirm", "evidence", "lask:review-loop", "isolation", "Workflow"])
+    assert.ok(fanOut.includes(s), `fan-out must carry ${s}`);
+  assert.match(fanOut, /re-dispatch that unit once/i, "evidence-free verdicts are re-dispatched, not averaged in");
+  const design = read("skills/design-brief/SKILL.md");
+  for (const s of ["~/.claude/lask/design-avoid.md", ".claude/design-avoid.md", "templates/design-avoid.md", "Never delete lines"])
+    assert.ok(design.includes(s), `design-brief must carry ${s}`);
+});
+
+test("templates ship the stop rule, the report shape and the design seed", () => {
+  const t = read("templates/claude-md-autonomy.md");
+  assert.match(t, /Stop and ask only when/);
+  assert.match(t, /git push --force/);
+  assert.match(t, /outside\s+the\s+current repository/);
+  assert.match(t, /Done means:/);
+  assert.match(t, /`Blocked on me`[\s\S]*`Changed`[\s\S]*`Found`/, "report headings in owner-first order");
+  assert.match(t, /could not confirm/);
+  assert.doesNotMatch(t, /lask:autonomy:(?:begin|end)/, "markers are added by the doctor, not stored in the template");
+  assert.match(t, /Subagents follow the report protocol/, "subagents load CLAUDE.md too; they keep their own report shape");
+  assert.match(t, /lask:handoff/, "skills that fix their own output format win");
+  assert.match(t, /design avoid list/, "lists a skill maintains at the user's request are not a stop");
+  const seed = read("templates/design-avoid.md");
+  assert.ok((seed.match(/^- /gm) || []).length >= 5, "the seed must name concrete patterns");
+});
+
+test("doctor command and script ship; researcher marks what it could not confirm", () => {
+  const { fm, body } = parseFrontmatter(read("commands/doctor.md"));
+  assert.equal(fm["disable-model-invocation"], "true");
+  assert.match(body, /scripts\/doctor\.mjs/);
+  const src = read("scripts/doctor.mjs");
+  for (const id of ["stop-rule", "think-lines", "reasoning-requests", "destructive-guard", "design-avoid", "tasks-file", "flag-switch"])
+    assert.ok(src.includes(`"${id}"`), `doctor must check ${id}`);
+  assert.match(src, /bak-lask-/, "--install must back up CLAUDE.md");
+  assert.match(read("agents/researcher.md"), /could not confirm, and say where you looked/);
+});
+
+test("the plugin's own instructions carry no think-harder or show-your-reasoning lines", () => {
+  const files = [
+    ...fs.readdirSync(path.join(PLUGIN_ROOT, "agents")).map((f) => `agents/${f}`),
+    ...fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).map((d) => `skills/${d}/SKILL.md`),
+    ...fs.readdirSync(path.join(PLUGIN_ROOT, "commands")).map((f) => `commands/${f}`),
+    ...fs.readdirSync(path.join(PLUGIN_ROOT, "templates")).map((f) => `templates/${f}`),
+  ].filter((f) => fs.existsSync(path.join(PLUGIN_ROOT, f)));
+  for (const f of files) {
+    const src = read(f);
+    assert.doesNotMatch(src, /\bthink\s+(?:very\s+|really\s+)?(?:carefully|hard(?:er)?|deeply|step[- ]by[- ]step)\b|\bultrathink\b/i, `${f}: Opus 5.5 thinks by itself; use effort`);
+    assert.doesNotMatch(src, /\bshow\s+(?:me\s+)?your\s+(?:reasoning|thinking|chain[- ]of[- ]thought)\b/i, `${f}: never ask to reproduce reasoning`);
+  }
 });
 
 test("review-loop skill carries the isolated two-family review, adjudication, judge validation and tiers", () => {
@@ -258,12 +328,15 @@ test("reviewer is adversarial and spec-anchored; verifier checks its own judge",
 test("README documents the roster, the skills, and the test commands", () => {
   const readme = fs.readFileSync(path.join(PLUGIN_ROOT, "..", "..", "README.md"), "utf8");
   for (const a of AGENTS) assert.match(readme, new RegExp(`lask:${a}`), `README must document lask:${a}`);
-  for (const s of ["review-loop", "handoff", "codex-run", "codex-status", "codex-result", "codex-cancel"])
+  for (const s of ["review-loop", "long-run", "fan-out", "design-brief", "doctor", "handoff", "codex-run", "codex-status", "codex-result", "codex-cancel"])
     assert.match(readme, new RegExp(`lask:${s}`), `README must document lask:${s}`);
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/tier\.test\.js/);
   assert.match(readme, /node --test plugins\/lask\/tests\//);
   assert.match(readme, /codex-jsonl-runner\.test\.mjs/, "README standard suite must run the behavioral runner tests");
   assert.match(readme, /codex-job\.test\.mjs/, "README standard suite must run job lifecycle tests");
+  assert.match(readme, /hooks\.test\.mjs/, "README standard suite must run the guard/resume hook tests");
+  assert.match(readme, /doctor\.test\.mjs/, "README standard suite must run the doctor tests");
+  assert.match(readme, /LASK_GUARD=0/, "README must document the guard off switch");
   assert.match(readme, /LASK_E2E=1/);
   assert.match(readme, /archive\/lask-1\.8/, "README must say where the retired components went");
   assert.doesNotMatch(readme, /lask:director|lask:delegation-playbooks|lask:fable-sense|lask:debugger|enforce\.test\.js/,
