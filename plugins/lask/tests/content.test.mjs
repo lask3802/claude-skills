@@ -180,13 +180,13 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
     assert.ok(!fs.existsSync(path.join(PLUGIN_ROOT, gone)), `${gone} must be retired`);
     assert.ok(fs.existsSync(path.join(archive, gone)), `${gone} must be kept in archive/lask-2.1`);
   }
-  assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop"]);
+  assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop", "voice-input"]);
 });
 
-test("plugin.json is 2.4.1 and describes the roster, the review loop, the output style and the playbook layer", () => {
+test("plugin.json is 2.4.2 and describes the roster, the review loop, the output style and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.4.1");
+  assert.equal(pkg.version, "2.4.2");
   assert.match(pkg.description, /review-loop/);
   assert.match(pkg.description, /TW Hybrid output style/);
   assert.match(pkg.description, /doctor/);
@@ -345,7 +345,7 @@ test("reviewer is adversarial and spec-anchored; verifier checks its own judge",
 test("README documents the roster, the skills, and the test commands", () => {
   const readme = fs.readFileSync(path.join(PLUGIN_ROOT, "..", "..", "README.md"), "utf8");
   for (const a of AGENTS) assert.match(readme, new RegExp(`lask:${a}`), `README must document lask:${a}`);
-  for (const s of ["review-loop", "doctor", "codex-run", "codex-status", "codex-result", "codex-cancel"])
+  for (const s of ["review-loop", "doctor", "codex-run", "codex-status", "codex-result", "codex-cancel", "voice-input"])
     assert.match(readme, new RegExp(`lask:${s}`), `README must document lask:${s}`);
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/tier\.test\.js/);
   assert.match(readme, /node --test plugins\/lask\/tests\//);
@@ -369,4 +369,20 @@ test("marketplace.json lask entry version matches plugin.json", () => {
   const entry = JSON.stringify(marketplace);
   assert.match(entry, new RegExp(pkg.version.replace(/\./g, "\\.")), "marketplace must reference the current plugin version");
   assert.ok(!entry.includes("1.1.0"), "stale 1.1.0 version must not remain in marketplace.json");
+});
+
+test("voice-input skill ships the measured CPU setup, the downloader and the verify-by-log rule", () => {
+  const { fm, body } = parseFrontmatter(read("skills/voice-input/SKILL.md"));
+  assert.equal(fm.name, "voice-input");
+  assert.match(body, /model_type = 'qwen_asr'/, "Qwen3-ASR is the measured default");
+  assert.match(body, /llm_use_gpu = False/, "default must stay CPU-only");
+  assert.match(body, /Qwen3ASRGGUFArgs/, "llm_use_gpu must be scoped to the Qwen3 block");
+  assert.match(body, /traditional_locale = 'zh-tw'/);
+  assert.match(body, /Parakeet v3 不支援中文/, "the Handy Parakeet trap must stay documented");
+  assert.match(body, /最终识别结果/, "verification reads the raw result from the client log");
+  assert.match(body, /热词替换后/, "and the post-hotword text, to separate model from hotword fixes");
+  assert.match(body, /自己測不了麥克風/, "must not claim end-to-end success without the user speaking");
+  assert.match(body, /newline=''/, "config edits must preserve line endings");
+  assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "voice-input", "pdl.py")), "parallel downloader ships with the skill");
+  assert.match(read("skills/voice-input/pdl.py"), /size mismatch/, "downloader must verify part sizes");
 });

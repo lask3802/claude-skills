@@ -1,7 +1,7 @@
 {
   "name": "lask",
-  "version": "2.4.1",
-  "description": "lask's personal Claude Code plugin. Six-agent roster (scout, researcher, implementer, reviewer, verifier, Codex second-opinion; opus except the haiku Codex relay; effort pinned per role), the TW Hybrid output style (selected by /lask:doctor --install), the review-loop skill (isolated adversarial review by two or more model families, adjudication, validated judge), /lask:doctor with a compact CLAUDE.md autonomy block (stop rule, TASKS.md long runs, one subagent per unit, design avoid list), a destructive-command guard, hook-enforced model tiering (opus default, sonnet for mechanical work, no fable), and Codex job UX.",
+  "version": "2.4.2",
+  "description": "lask's personal Claude Code plugin. Six-agent roster (scout, researcher, implementer, reviewer, verifier, Codex second-opinion; opus except the haiku Codex relay; effort pinned per role), the TW Hybrid output style (selected by /lask:doctor --install), the review-loop skill (isolated adversarial review by two or more model families, adjudication, validated judge), /lask:doctor with a compact CLAUDE.md autonomy block (stop rule, TASKS.md long runs, one subagent per unit, design avoid list), a destructive-command guard, hook-enforced model tiering (opus default, sonnet for mechanical work, no fable), Codex job UX, and the voice-input skill (Windows dictation into Claude with CapsWriter-Offline and Qwen3-ASR on CPU).",
   "author": {
     "name": "lask3802"
   },

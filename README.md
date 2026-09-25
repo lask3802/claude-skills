@@ -48,6 +48,10 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.4.2：語音輸入 skill
+
+新增 `/lask:voice-input`，讓每台 Windows 機器都能用同一套方式對 Claude 說話：CapsWriter-Offline 加 Qwen3-ASR-1.7B，跑在 CPU、輸出台灣繁體，按住 CapsLock 說話、放開就打進輸入框。選它是因為同一句中英混說的測試句，SenseVoice 雖然只要 0.13 秒，但句子結構整段垮掉；Qwen3-ASR 要 1.5–1.9 秒，結構正確，剩下「音對字錯」的專有名詞用熱詞修得掉。skill 附多連線下載器 `pdl.py`（GitHub release 單線在台灣只有 0.1–0.4 MB/s），並規定端到端驗證要使用者實際開口、再從 client log 對照原始結果與熱詞修正後的結果。
+
 ## 2.4.1：Codex 額度預檢與第二家族替補
 
 問題是 Codex 的額度常在審查跑到一半時用完：已經花掉的額度拿不回來，也沒有結果。現在 `lask:second-opinion` 開跑前先讀 `codex-ratelimit.js` 的快照，任何一個視窗剩不到 10%、而且重置時間還沒到，就回報 `QUOTA-STOP` 和重置時間，不開跑。這個快照只有在 Codex 執行時才會更新，通常已經過期好幾天，所以過期時會先用 low effort 探測一次，探測成功後重讀快照再判斷。腳本會把週額度標成 `primary_5h`，因此回報時一律附上視窗分鐘數。
@@ -99,6 +103,7 @@ style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin
 | `/lask:review-loop` | 每個工作單位：規格落地 → 實作 → **至少兩個、來自不同模型家族的隔離對抗式 reviewer**（Claude `lask:reviewer` + 第二家族：Codex `lask:second-opinion`、Meta Muse、opencode/MiMo 等，配方見 `second-family.md`；同一份 brief、平行派出）→ 逐條裁決（單方發現預設不成立）→ fixer 只修已確認項 → **驗證過的 judge** 決定完成。含 judge 必須先在刻意弄壞的版本上失敗的規則、重複失敗上移成規則、以及 model tier 表（tiering hooks 的拒絕訊息指向這裡）。 |
 | `/lask:doctor` | 對照 Opus 5.5 playbook 檢查環境：stop rule、think-hard 句、要求展示推理的句子、destructive guard、design 清單、`TASKS.md` 進度、model／effort、過期的 `FABLE-SENSE` 區塊。`--install` 把 autonomy 區塊（stop rule、長任務 `TASKS.md`、每單位一個 subagent、design 禁用清單、回報格式）裝進 `~/.claude/CLAUDE.md`（先備份；本地改過的不覆蓋，除非 `--force`），移除 `FABLE-SENSE` 區塊，並建立 design 清單。 |
 | `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|astra\|luna] [--effort low\|medium\|high\|xhigh\|max\|ultra] [--sandbox write\|read] <任務>`（預設 gpt-6-sol；gpt-5.6 仍可用完整名指定）。啟動後立即回傳 workspace-scoped job ID；底層保存純 event JSONL、authenticated owner＋PID、quiet-heartbeat telemetry、獨立 stderr／final-message 與真實 exit code，terminal commit 會綁定 final 的 size＋SHA-256。 |
+| `/lask:voice-input` | Windows 語音輸入 Claude：安裝 CapsWriter-Offline＋Qwen3-ASR（CPU、台灣繁體），種熱詞，從 client log 驗證；`tune` 依 log 的原始辨識結果加熱詞修錯字。附多連線下載器 `pdl.py`。 |
 | `/lask:codex-status` | 查目前 workspace 最新或指定 Codex job；顯示 queued/running/completed 等狀態、reasoning/investigating/editing/verifying 等 phase、最後活動與 artifact 路徑。`--all` 可列出所有 jobs。 |
 | `/lask:codex-result` | 讀取最新或指定已結束 job 的 Codex final response；失敗／取消時不會假裝成功。 |
 | `/lask:codex-cancel` | 安全取消最新或指定 job。controller 不依 manifest PID 直接殺程序，而由 owning runner 收到 job-specific request 後終止自己的 child tree。 |
@@ -207,6 +212,7 @@ plugins/
     skills/
       review-loop/          # 多家族隔離審查 + judge 的工作單位迴圈（2.0 核心）；second-family.md = 第二家族 reviewer 配方
       codex-run/
+      voice-input/          # Windows 語音輸入（CapsWriter＋Qwen3-ASR CPU）；pdl.py = 多連線下載器
     tests/
       codex-job.test.mjs
       codex-jsonl-runner.test.mjs
