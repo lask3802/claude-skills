@@ -31,18 +31,18 @@ review/verify dispatches, i.e. the half that pays was the half not used.)
 3. **Reviewers, isolated, launched together (ONE message / parallel):**
    - **At least two, from different model families; three when a miss is expensive.**
      The best single reviewer in the validation run found 60% of the defects.
-   - Claude: `lask:reviewer`. Second family: `lask:second-opinion` (Codex), or any
+   - Claude: `lask:reviewer`. Second family: `lask:second-opinion` (Codex — the OpenAI
+     family, gpt-6-sol from the operator's Codex config), Meta Muse (`muse exec`), or any
      headless agent CLI in a read-only mode — see `second-family.md` in this skill's
-     directory for tested recipes, time boxes, and how to recover output. Through
-     `opencode2 run --agent plan`, two measured choices (both 8/8 on the seeded
-     benchmark): `opencode-go/glm-5.3-flash` (~2 min, Go subscription) and
-     `openrouter/openai/gpt-6-sol#high` (~3 min, ~$0.27, deeper — caught consequences
-     beyond the diff). The full command, time box, and the brief-inside-the-workspace
-     rule are in `second-family.md`.
-   - `lask:second-opinion` checks Codex quota before it starts. On `QUOTA-STOP`, run one
-     of the two opencode choices in its place now rather than waiting for the reset; if
-     the unit is worth a Codex pass too, re-dispatch second-opinion after the reset time
-     it reported.
+     directory for tested recipes, time boxes, and how to recover output.
+     **gpt-6-sol goes through the Codex CLI, never OpenRouter** (owner decision
+     2026-09-26). Through `opencode2 run --agent plan`, `opencode-go/glm-5.3-flash`
+     (~2 min, Go subscription, 8/8 on the seeded benchmark) is the measured opencode
+     choice. The full commands, time boxes, and the brief-inside-the-workspace rule are
+     in `second-family.md`.
+   - `lask:second-opinion` checks Codex quota before it starts. On `QUOTA-STOP`, run Muse
+     or glm-5.3-flash in its place now rather than waiting for the reset; if the unit is
+     worth a Codex pass too, re-dispatch second-opinion after the reset time it reported.
    - Every reviewer gets the **identical** brief (template below) and nothing else:
      not the other reviews, not the implementer's report, not your opinion of the work.
 4. **Adjudicate — the main session's job, not a substitute for a reviewer.** Check each
@@ -88,8 +88,7 @@ never by an agent inside the loop.
 | `haiku` | pure relays whose raw output the director reads anyway (`lask:second-opinion`) |
 | `fable` | retired for subagents: Opus 5.5 is the better buy, and the hooks move fable spawns to opus |
 
-Effort is pinned per role in agent frontmatter (a spawn cannot override it; unpinned
-agents follow the session's `/effort`). Opus 5.5 on Artificial Analysis, 2026-09-23:
+Opus 5.5 on Artificial Analysis, 2026-09-23:
 
 | effort | Intelligence Index | Terminal-Bench 4.0 | $/task | TTFT |
 |---|---|---|---|---|
@@ -99,13 +98,36 @@ agents follow the session's `/effort`). Opus 5.5 on Artificial Analysis, 2026-09
 | xhigh | 56 | 60% | 3.46 | 155s |
 | max | 58 | 60% | 5.98 | — |
 
-So: `scout`, `verifier` → medium (low drops 22 points on tool work); `reviewer` → high (each
-step above roughly doubles cost for +0–3 points); `implementer`, `researcher` unpinned
-so the session's effort tracks task difficulty.
+Each step above high roughly doubles cost for +0–3 points; low drops 22 points on tool
+work. So effort is set **by role, explicitly** — never left to whatever the session runs at:
+
+| Work | effort | How it is set |
+|---|---|---|
+| research, synthesis, spec and design writing, hard root-cause debugging | `xhigh` is fine (the session's) | `lask:researcher` is unpinned; in a workflow write `effort: 'xhigh'` |
+| implementation, coding, test writing, the fixer | `high` | `lask:implementer` pins high; in a workflow `effort: 'high'` (`'xhigh'` only for a named hard case, e.g. a concurrency or determinism bug) |
+| bulk low-level work: inventories, classification drafts, extraction, sweeps, mechanical edits, format and citation checks | `medium` | in a workflow `effort: 'medium'` on opus; when it is purely mechanical `model: 'sonnet'` — still with an explicit effort |
+| review | `high` | `lask:reviewer` pins high |
+| recon, verification | `medium` | `lask:scout`, `lask:verifier` pin medium |
+| relays (run a command, return its output verbatim) | `low` | `lask:second-opinion` runs on haiku; in a workflow `model: 'haiku', effort: 'low'` |
+
+How a pin interacts with the rest:
+- The `Agent` tool has no effort parameter: its spawn gets the definition's pin, or the
+  session's `/effort` when the definition pins nothing. Under `/effort xhigh` or ultracode
+  every unpinned agent (`general-purpose`, `Plan`, `lask:researcher`) runs at xhigh — so
+  send coding to `lask:implementer` and bulk work through a workflow with an explicit
+  effort, never through an unpinned agent.
+- A workflow `agent()` `effort:` **overrides** the pin (measured 2026-09-26: `lask:scout`,
+  pinned medium, ran at high with `effort: 'high'`).
+- Evidence for making it explicit (dragonraja-rebon, 2026-09-26): a workflow that set only
+  `model: 'opus'` ran 29 inventory-draft and adjudication agents at the session's xhigh;
+  only the pinned `lask:reviewer` stage ran at high.
 
 Stakes buy **more reviewers from more families**, not a bigger executor. Workflow
-scripts must tier every `agent()` call (`model:` or a pinned `agentType`); add
-`tier: reviewed` to bypass a false positive.
+scripts must tier every `agent()` call — a `model:` (or an `agentType`) **and** an
+`effort:` (or a lask `agentType` whose definition pins one); the hook denies the script
+otherwise. Only the top-level properties of the call's last argument count — a `schema`
+with an `effort` property or a nested `...spread` does not. Add `tier: reviewed` to bypass
+a false positive, never to dodge the rule.
 
 ## Reviewer brief template
 

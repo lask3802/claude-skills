@@ -132,8 +132,8 @@ const META = "export const meta = { name: 'x', description: 'y' }\n";
 test('workflow: all agent() calls tiered -> pass', () => {
   const script =
     META +
-    "const a = await agent('do x', { model: 'sonnet' })\n" +
-    'const b = await agent("y", { schema: S, model: \'opus\' })\n';
+    "const a = await agent('do x', { model: 'sonnet', effort: 'medium' })\n" +
+    'const b = await agent("y", { schema: S, model: \'opus\', effort: \'high\' })\n';
   const res = runHook('tier-workflow.js', wfInput({ script }));
   assert(res.status === 0 && res.stdout.trim() === '', `expected pass, got: ${res.stdout}`);
 });
@@ -146,6 +146,7 @@ test('workflow: untier-ed agent() call -> deny with instructive reason', () => {
   assert(/sonnet/.test(h.permissionDecisionReason) && /opus/.test(h.permissionDecisionReason) && /fable/.test(h.permissionDecisionReason), 'reason must restate tiers');
   assert(/tier: reviewed/.test(h.permissionDecisionReason), 'reason must name the bypass marker');
   assert(/lask:review-loop/.test(h.permissionDecisionReason), 'reason must point at the review-loop skill');
+  assert(/effort/.test(h.permissionDecisionReason) && /'medium'/.test(h.permissionDecisionReason), 'reason must restate the effort rubric');
 });
 
 test('workflow: model fable -> deny (fable retired), fable inside a prompt string does not', () => {
@@ -157,7 +158,7 @@ test('workflow: model fable -> deny (fable retired), fable inside a prompt strin
     const out = parseOut(runHook('tier-workflow.js', wfInput({ script })));
     assert(out && out.hookSpecificOutput.permissionDecision === 'deny', `expected deny for: ${script}`);
   }
-  const ok = META + "await agent(\"compare model: 'fable' output\", { model: 'opus' })\n";
+  const ok = META + "await agent(\"compare model: 'fable' output\", { model: 'opus', effort: 'high' })\n";
   const res = runHook('tier-workflow.js', wfInput({ script: ok }));
   assert(res.stdout.trim() === '', `prompt text must not trip the check, got: ${res.stdout}`);
 });
@@ -168,10 +169,12 @@ test('workflow: agent() with no opts at all -> deny', () => {
   assert(out.hookSpecificOutput.permissionDecision === 'deny', 'expected deny');
 });
 
-test('workflow: agentType satisfies the tier requirement', () => {
-  const script = META + "await agent('x', { agentType: 'Explore' })\n";
-  const res = runHook('tier-workflow.js', wfInput({ script }));
-  assert(res.stdout.trim() === '', 'expected pass');
+test('workflow: agentType satisfies the tier requirement (effort still required when not pinned)', () => {
+  const ok = META + "await agent('x', { agentType: 'Explore', effort: 'medium' })\n";
+  assert(runHook('tier-workflow.js', wfInput({ script: ok })).stdout.trim() === '', 'expected pass');
+  const bad = META + "await agent('x', { agentType: 'Explore' })\n";
+  const out = parseOut(runHook('tier-workflow.js', wfInput({ script: bad })));
+  assert(out && out.hookSpecificOutput.permissionDecision === 'deny', 'unpinned agentType without effort must deny');
 });
 
 test('workflow: spread opts treated as compliant (not statically knowable)', () => {
@@ -189,20 +192,20 @@ test('workflow: tier reviewed marker bypasses the check', () => {
 test('workflow: agent( inside string/template literals is ignored', () => {
   const script =
     META +
-    'await agent(`verify the agent(...) call in ${f.title}`, { model: \'opus\' })\n' +
-    "await agent('the word agent(x) appears here', { model: 'sonnet' })\n";
+    'await agent(`verify the agent(...) call in ${f.title}`, { model: \'opus\', effort: \'high\' })\n' +
+    "await agent('the word agent(x) appears here', { model: 'sonnet', effort: 'medium' })\n";
   const res = runHook('tier-workflow.js', wfInput({ script }));
   assert(res.stdout.trim() === '', `expected pass, got: ${res.stdout}`);
 });
 
 test('workflow: agent( inside comments is ignored', () => {
-  const script = META + '// agent(\n/* agent( */\nawait agent("x", { model: "opus" })\n';
+  const script = META + '// agent(\n/* agent( */\nawait agent("x", { model: "opus", effort: "high" })\n';
   const res = runHook('tier-workflow.js', wfInput({ script }));
   assert(res.stdout.trim() === '', 'expected pass');
 });
 
 test('workflow: nested parens inside the call are balanced', () => {
-  const ok = META + "await agent(mkPrompt(a, b(c)), { model: 'opus' })\n";
+  const ok = META + "await agent(mkPrompt(a, b(c)), { model: 'opus', effort: 'high' })\n";
   const bad = META + 'await agent(mkPrompt(a, b(c)))\n';
   assert(runHook('tier-workflow.js', wfInput({ script: ok })).stdout.trim() === '', 'nested ok should pass');
   const out = parseOut(runHook('tier-workflow.js', wfInput({ script: bad })));
@@ -218,9 +221,122 @@ test('workflow: subagent-like identifiers do not match', () => {
 test('workflow: model passed deeper in multi-line opts', () => {
   const script =
     META +
-    "await agent('long task', {\n  label: 'x',\n  phase: 'Find',\n  schema: FOO,\n  model: 'sonnet',\n})\n";
+    "await agent('long task', {\n  label: 'x',\n  phase: 'Find',\n  schema: FOO,\n  model: 'sonnet',\n  effort: 'medium',\n})\n";
   const res = runHook('tier-workflow.js', wfInput({ script }));
   assert(res.stdout.trim() === '', 'expected pass');
+});
+
+test('workflow: model without effort -> deny, and the reason names the gap', () => {
+  const script = META + "await agent('write the parser', { model: 'opus' })\n";
+  const out = parseOut(runHook('tier-workflow.js', wfInput({ script })));
+  const h = out && out.hookSpecificOutput;
+  assert(h && h.permissionDecision === 'deny', 'expected deny');
+  assert(/no effort/.test(h.permissionDecisionReason), `reason must say which rule failed: ${h.permissionDecisionReason}`);
+});
+
+test('workflow: an effort literal must be a real level; an expression is trusted', () => {
+  for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) {
+    const script = META + `await agent('x', { model: 'opus', effort: '${level}' })\n`;
+    assert(runHook('tier-workflow.js', wfInput({ script })).stdout.trim() === '', `${level} should pass`);
+  }
+  const bad = META + "await agent('x', { model: 'opus', effort: 'extreme' })\n";
+  const out = parseOut(runHook('tier-workflow.js', wfInput({ script: bad })));
+  assert(out && out.hookSpecificOutput.permissionDecision === 'deny', 'unknown level must deny');
+  assert(/not a level/.test(out.hookSpecificOutput.permissionDecisionReason), 'reason must say the level is invalid');
+  const expr = META + "await agent('x', { model: 'opus', effort: hard ? 'xhigh' : 'high' })\n";
+  assert(runHook('tier-workflow.js', wfInput({ script: expr })).stdout.trim() === '', 'expression should pass');
+});
+
+test('workflow: a lask agentType whose definition pins effort satisfies it; an unpinned one does not', () => {
+  // Pins come from plugins/lask/agents/*.md: scout/verifier medium, reviewer/implementer high.
+  for (const t of ['lask:reviewer', 'lask:implementer', 'lask:scout', 'lask:verifier']) {
+    const script = META + `await agent('x', { agentType: '${t}' })\n`;
+    assert(runHook('tier-workflow.js', wfInput({ script })).stdout.trim() === '', `${t} is pinned and should pass`);
+  }
+  for (const t of ['lask:researcher', 'general-purpose']) {
+    const script = META + `await agent('x', { agentType: '${t}' })\n`;
+    const out = parseOut(runHook('tier-workflow.js', wfInput({ script })));
+    assert(out && out.hookSpecificOutput.permissionDecision === 'deny', `${t} is unpinned and must deny without effort`);
+  }
+  const research = META + "await agent('x', { agentType: 'lask:researcher', effort: 'xhigh' })\n";
+  assert(runHook('tier-workflow.js', wfInput({ script: research })).stdout.trim() === '', 'explicit effort on an unpinned agent passes');
+});
+
+test('workflow: effort named inside a prompt string does not count', () => {
+  const script = META + "await agent(\"use effort: 'high' here\", { model: 'opus' })\n";
+  const out = parseOut(runHook('tier-workflow.js', wfInput({ script })));
+  assert(out && out.hookSpecificOutput.permissionDecision === 'deny', 'prompt text must not satisfy the effort rule');
+});
+
+test('workflow: only top-level options of the last argument count (nested keys and spreads do not)', () => {
+  const deny = [
+    // a structured-output schema with an `effort` property is not the call's effort
+    "await agent('x', { model: 'opus', schema: { properties: { effort: { type: 'string' } } } })\n",
+    "await agent('x', { model: 'opus', config: { effort: 'medium' } })\n",
+    // a nested agentType is not the call's agentType
+    "await agent('x', { model: 'opus', foo: { agentType: 'lask:scout' } })\n",
+    // a spread inside the prompt or a nested array is not an options spread
+    "await agent(mk(...parts), { model: 'opus' })\n",
+    "await agent('x', { model: 'opus', data: [...xs] })\n",
+    // an effort named only in a comment
+    "await agent('x', { model: 'opus' /* effort: 'high' */ })\n",
+  ];
+  for (const body of deny) {
+    const out = parseOut(runHook('tier-workflow.js', wfInput({ script: META + body })));
+    assert(out && out.hookSpecificOutput.permissionDecision === 'deny', `expected deny: ${body}`);
+  }
+  // a nested key must not make a compliant pinned call look invalid either
+  const pinnedWithSchema = META + "await agent('x', { agentType: 'lask:scout', schema: { effort: 'hgih' } })\n";
+  assert(runHook('tier-workflow.js', wfInput({ script: pinnedWithSchema })).stdout.trim() === '', 'nested key must not fail a pinned call');
+});
+
+test('workflow: shorthand, quoted keys, comments and literal forms', () => {
+  const pass = [
+    "const effort = 'high'\nawait agent('x', { model: 'opus', effort })\n",
+    "await agent('x', { 'model': 'opus', \"effort\": 'high' })\n",
+    "await agent('x', { agentType: 'lask:scout' // recon\n })\n",
+    "await agent('x', { model: 'opus', effort: 'high' // bulk\n })\n",
+    "await agent('x', { model: 'opus', effort: `high` })\n",
+    "await agent('x', { model: 'opus', effort: `x${lvl}` })\n", // template with interpolation = expression
+    "await agent('x', { model: 'opus', effort: 'hi' + 'gh' })\n", // concatenation = expression
+  ];
+  for (const body of pass) {
+    const res = runHook('tier-workflow.js', wfInput({ script: META + body }));
+    assert(res.stdout.trim() === '', `expected pass: ${body} -> ${res.stdout}`);
+  }
+  const deny = [
+    "await agent('x', { model: 'opus', effort: 'hgih' // typo\n })\n",
+    "await agent('x', { model: 'opus', effort: 'extreme' /* lvl */ })\n",
+    "await agent('x', { model: 'opus', effort: `hgih` })\n",
+    "await agent('x', { model: 'opus', effort: 'say \"hi\"' })\n",
+  ];
+  for (const body of deny) {
+    const out = parseOut(runHook('tier-workflow.js', wfInput({ script: META + body })));
+    assert(out && out.hookSpecificOutput.permissionDecision === 'deny', `expected deny: ${body}`);
+  }
+});
+
+test('workflow: pins come from the agent frontmatter; no pins is stricter, never looser', () => {
+  const { findViolations, pinnedEfforts } = require('./tier-workflow.js');
+  // Independently parse plugins/lask/agents/*.md and compare with what the hook reads.
+  const dir = path.join(DIR, '..', '..', 'agents');
+  const expected = new Map();
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(fs.readFileSync(path.join(dir, f), 'utf8'))[1];
+    const e = /^effort:\s*(\S+)/m.exec(fm);
+    if (e) expected.set(/^name:\s*(\S+)/m.exec(fm)[1], e[1]);
+  }
+  const got = pinnedEfforts();
+  assert(expected.size >= 4, `expected at least 4 pinned agents, frontmatter has ${expected.size}`);
+  assert(JSON.stringify([...got].sort()) === JSON.stringify([...expected].sort()), `pins ${JSON.stringify([...got])} != frontmatter ${JSON.stringify([...expected])}`);
+  const pinnedCall = META + "await agent('x', { agentType: 'lask:scout' })\n";
+  assert(findViolations(pinnedCall, got).length === 0, 'pinned call passes with the real pins');
+  assert(findViolations(pinnedCall, new Map()).length === 1, 'with no readable pins the same call must be denied');
+  // the deny reason lists the pinned set as read, not a hardcoded copy
+  const out = parseOut(runHook('tier-workflow.js', wfInput({ script: META + "await agent('x', { model: 'opus' })\n" })));
+  for (const name of expected.keys()) {
+    assert(out.hookSpecificOutput.permissionDecisionReason.includes(`lask:${name}`), `reason must list lask:${name}`);
+  }
 });
 
 test('workflow: named workflow / resume without script -> pass', () => {

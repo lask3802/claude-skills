@@ -48,6 +48,18 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.5.0：coding 與大量工作明確指定 effort
+
+2.3 只替角色性質明確的 agent 固定 effort，`implementer`、`researcher` 跟著 session 走。實際跑下來的問題是：session 開 `/effort xhigh` 或 ultracode 時，所有沒固定的 agent 都跟著跑 xhigh。dragonraja-rebon 2026-09-26 的一個 workflow 只寫了 `model: 'opus'`，結果 29 個 inventory 起草與裁決 agent 全跑在 xhigh，只有固定 high 的 `lask:reviewer` 那一段是 high。依 2.3 的量測，high 以上每升一級約翻倍成本、只多 0–3 分，coding 和大量低階工作不該吃到 xhigh。
+
+- **effort 依角色明確指定**（review-loop 的新對照表）：研究、綜整、規格與設計撰寫、困難的根因除錯可以用 xhigh；實作、coding、寫測試、fixer 用 high；大量低階工作（inventory、分類草稿、抽取、掃描、機械式修改、格式與引用檢查）用 medium，純機械的改用 sonnet；審查 high；偵察與驗收 medium。
+- **`lask:implementer` 固定 `effort: high`**。`lask:researcher` 仍不固定，研究型工作照 session 的 effort 跑。
+- **workflow hook 要求明確 effort**：`tier-workflow.js` 規定每個 `agent()` 除了 model 之外還要帶 `effort:`（值必須是 low／medium／high／xhigh／max，運算式視為明確指定），或使用定義中已固定 effort 的 lask `agentType`（`lask:scout`、`lask:verifier`、`lask:reviewer`、`lask:implementer`）。固定值從 plugin 自己的 agent frontmatter 讀取，hook 與定義不會不同步。拒絕訊息會列出依角色的 effort 對照與缺的是哪一項。
+- **實測**：workflow `agent()` 的 `effort:` 會**覆蓋**定義中的固定值（2026-09-26：固定 medium 的 `lask:scout` 帶 `effort: 'high'` 時實際跑 high）；`Agent` tool 沒有 effort 參數，只吃定義的固定值，沒固定就跟 session。所以 coding 交給 `lask:implementer`、大量工作走帶明確 effort 的 workflow，不要丟給沒固定的 agent（`general-purpose`、`Plan`、`lask:researcher`）。
+- **gpt-6-sol 只走 Codex CLI**（物主 2026-09-26 決定）：第二家族的 OpenAI 模型一律經 `lask:second-opinion`／`codex exec`（Codex CLI 0.157.0，設定檔 `model = "gpt-6-sol"`、不帶 `-m`，實測可用），不再經 OpenRouter；`QUOTA-STOP` 時改用 Muse 或 glm-5.3-flash。`second-family.md` 補上 2026-09-26 的實測（Codex 可用、Muse 可用、opencode Go 額度用罄、opencode2 plan agent 讀 workspace 外就整個中止）。
+- **只看頂層選項**：hook 只解析 `agent()` 最後一個參數（物件字面值）的頂層屬性；structured-output `schema` 裡的 `effort`、巢狀的 `...spread`、註解裡的文字都不算數；shorthand `{ effort }`、加引號的 key、值後面接註解都正確處理；template 內含 `${}` 或字串相加視為運算式。
+- hook 測試 32 項（新增 effort 缺漏、非法等級、運算式、固定／未固定 agentType、prompt／註解內文字不算數、巢狀 key 與 spread、shorthand 與引號 key、pins 與 frontmatter 一致且讀不到時更嚴格）。以 5 種 mutation 驗證 judge：拿掉 effort 檢查、把任何 `lask:` agentType 都當成已固定、括號深度只追小括號、`...` 出現在任何位置都算 spread、template 插值當成字面值——每一種都讓測試失敗。
+
 ## 2.4.2：語音輸入 skill
 
 新增 `/lask:voice-input`，讓每台 Windows 機器都能用同一套方式對 Claude 說話：CapsWriter-Offline 加 Qwen3-ASR-1.7B，跑在 CPU、輸出台灣繁體，按住 CapsLock 說話、放開就打進輸入框。選它是因為同一句中英混說的測試句，SenseVoice 雖然只要 0.13 秒，但句子結構整段垮掉；Qwen3-ASR 要 1.5–1.9 秒，結構正確，剩下「音對字錯」的專有名詞用熱詞修得掉。skill 附多連線下載器 `pdl.py`（GitHub release 單線在台灣只有 0.1–0.4 MB/s），並規定端到端驗證要使用者實際開口、再從 client log 對照原始結果與熱詞修正後的結果。
@@ -81,7 +93,7 @@ style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin
 
 依 Artificial Analysis 各 effort 等級的實測（2026-09-23，Opus 5.5）：Intelligence Index low 42 → medium 51 → high 54 → xhigh 56 → max 58；Terminal-Bench 4.0 為 31% → 53% → 57% → 60% → 60%，每題成本 $0.55 → $1.34 → $1.82 → $3.46 → $5.98。high 以上每升一級約翻倍成本、只多 0–3 分；low 在工具操作上掉 22 分（53% → 31%）。
 
-- **agent frontmatter 固定 `effort`**：`scout`、`verifier` → medium；`reviewer` → high；`implementer`、`researcher` 不固定，跟著 session 的 `/effort` 走。Agent 呼叫無法覆蓋 effort，所以只固定角色性質明確的。本機 transcript 顯示中途改 effort 不會讓 prompt cache 失效（6 個 session 在 TTL 內改 effort，下一個 request 的 cache_read 都延續前一輪）。實測 `--effort low` 的主 session 派出的 `lask:reviewer` 跑在 high。
+- **agent frontmatter 固定 `effort`**：`scout`、`verifier` → medium；`reviewer` → high；`implementer`、`researcher` 不固定，跟著 session 的 `/effort` 走。Agent 呼叫無法覆蓋 effort（Agent tool 沒有 effort 參數；workflow `agent()` 的 effort 則可以覆蓋，見 2.5.0），所以只固定角色性質明確的。本機 transcript 顯示中途改 effort 不會讓 prompt cache 失效（6 個 session 在 TTL 內改 effort，下一個 request 的 cache_read 都延續前一輪）。實測 `--effort low` 的主 session 派出的 `lask:reviewer` 跑在 high。
 - **`second-opinion` 改用 haiku**：它只是 Codex 的轉述；brief 原文照抄給 Codex，review-loop 的裁決改以 Codex 原始 final-message 檔為準，轉述只當索引。
 - review-loop 的 tier 表加上 haiku 與 effort 對照表，並註明 sonnet 不適合多步驟工具工作（Terminal-Bench 4.0：Sonnet 5 high 5%、max 14%）。
 
@@ -114,7 +126,7 @@ style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin
 |---|---|---|
 | `lask:scout` | opus（effort medium） | 內部偵察：讀碼、盤結構與現況，回報精煉簡報（唯讀） |
 | `lask:researcher` | opus | 外部研究：官方文件、API、生態系（唯讀＋web） |
-| `lask:implementer` | opus | 依規格實作＋自測義務（附指令與結果證據）；也擔任 review loop 的 fixer |
+| `lask:implementer` | opus（effort high） | 依規格實作＋自測義務（附指令與結果證據）；也擔任 review loop 的 fixer |
 | `lask:reviewer` | opus（effort high） | 對抗式審查：假設變更是錯的，以規格行號為準，severity 分級、每條附失敗情境 |
 | `lask:second-opinion` | haiku | 跨模型審查：開跑前先檢查 Codex 額度（不足就回報 `QUOTA-STOP`），唯讀沙箱跑 Codex CLI，brief 原文照抄給 Codex，以 event＋telemetry JSONL 顯示過程並忠實轉述；主 session 以 Codex 的原始 final-message 檔逐條裁決（haiku 只做轉述，判斷在 Codex 與主 session） |
 | `lask:verifier` | opus（effort medium） | 驗收官／judge：逐條執行驗收，只回報事實、絕不動手修；擔任 judge 時也檢查 judge 本身是否驗證過 |
@@ -126,7 +138,7 @@ style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin
 ### Model tiering
 
 - **PreToolUse `Agent`/`Task`**（`tier-agent.js`）：spawn 沒帶 `model` 時自動改寫——內建 `Explore` → sonnet、其餘 → opus；**明確帶 fable 的改寫成 opus**（fable subagent 已退役）；`model: "inherit"` 視同沒帶（避免把 Fable 主 session 的模型傳下去）；其他明確傳入的 `model` 一律尊重；含 `:` 的 plugin agent 交給其定義決定。
-- **PreToolUse `Workflow`**（`tier-workflow.js`）：ultracode script 中每個 `agent()` 都必須帶 `model: 'opus'`／`'sonnet'`（或 pinned `agentType`），寫 `model: 'fable'` 也算違規，整個呼叫被擋下並附修正指示；誤判時在 script 加註解 `tier: reviewed` 略過。
+- **PreToolUse `Workflow`**（`tier-workflow.js`）：ultracode script 中每個 `agent()` 都必須帶 `model: 'opus'`／`'sonnet'`（或 `agentType`），**並且**帶 `effort:`（low／medium／high／xhigh／max；或使用定義中已固定 effort 的 lask `agentType`），寫 `model: 'fable'` 或不存在的 effort 等級也算違規，整個呼叫被擋下並附依角色的 effort 對照與修正指示；誤判時在 script 加註解 `tier: reviewed` 略過。
 - 設計原則 **fail-open**：任何 hook 出錯只會退化成「沒有政策」、`exit 0` 不輸出，絕不弄壞 spawn。沒有 SessionStart 政策注入，也沒有編輯節流。
 
 ### Destructive guard（2.1；git 規則 2.2 改看實際狀態）
@@ -193,7 +205,7 @@ plugins/
       hooks.json            # PreToolUse(Agent|Task, Workflow, Bash|PowerShell) + SessionStart(compact)
       scripts/
         tier-agent.js       # spawn 未帶 model → opus/sonnet；fable → opus
-        tier-workflow.js    # 驗證 workflow script 的 agent() 都有分級、沒有 fable
+        tier-workflow.js    # 驗證 workflow script 的 agent() 都有 model 分級與明確 effort、沒有 fable
         destructive-guard.js # 破壞性 shell 指令 ask；本機 git 看 git status
         run-resume.js       # 壓縮後指回 TASKS.md
         tier.test.js        # model-tiering hook 行為測試

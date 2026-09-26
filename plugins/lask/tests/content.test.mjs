@@ -65,7 +65,8 @@ test("every agent has sound frontmatter and the shared contracts", () => {
 
 test("model and effort pins match each role (review-loop tier table)", () => {
   const fms = Object.fromEntries(AGENTS.map((a) => [a, parseFrontmatter(read(`agents/${a}.md`)).fm]));
-  const pins = { scout: "medium", verifier: "medium", reviewer: "high", implementer: undefined, researcher: undefined, "second-opinion": undefined };
+  // implementer pinned high (2.5.0): coding must not inherit an xhigh/ultracode session; researcher stays unpinned.
+  const pins = { scout: "medium", verifier: "medium", reviewer: "high", implementer: "high", researcher: undefined, "second-opinion": undefined };
   for (const [name, effort] of Object.entries(pins)) {
     assert.equal(fms[name].effort, effort, `${name}: effort pin`);
   }
@@ -82,8 +83,12 @@ test("second-opinion checks Codex quota first and review-loop names the measured
   assert.match(so, /stale/, "a stale snapshot must trigger the probe, not a blind start");
   assert.match(so, /window_minutes/, "report the window length: the script labels the weekly window primary_5h");
   const loop = read("skills/review-loop/SKILL.md");
-  for (const m of ["QUOTA-STOP", "opencode-go/glm-5.3-flash", "openrouter/openai/gpt-6-sol#high"])
+  for (const m of ["QUOTA-STOP", "opencode-go/glm-5.3-flash", "Muse"])
     assert.ok(loop.includes(m), `review-loop must name ${m}`);
+  // Owner decision 2026-09-26: gpt-6-sol is reached through the Codex CLI only.
+  assert.match(loop, /gpt-6-sol goes through the Codex CLI, never OpenRouter/, "review-loop must route gpt-6-sol through Codex");
+  assert.ok(!loop.includes("openrouter/openai/gpt-6-sol"), "review-loop must not recommend the OpenRouter gpt-6-sol route");
+  assert.match(read("skills/review-loop/second-family.md"), /gpt-6-sol#high` \(opencode2 \+ OpenRouter\)[^\n]*\*\*Not used\*\*/, "second-family must mark the OpenRouter route unused");
   assert.match(read("skills/review-loop/second-family.md"), /\| 8\/8 \| 8\/8 \| 2 min/, "the benchmark table must stay");
 });
 
@@ -183,10 +188,10 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop", "voice-input"]);
 });
 
-test("plugin.json is 2.4.2 and describes the roster, the review loop, the output style and the playbook layer", () => {
+test("plugin.json is 2.5.0 and describes the roster, the review loop, the output style and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.4.2");
+  assert.equal(pkg.version, "2.5.0");
   assert.match(pkg.description, /review-loop/);
   assert.match(pkg.description, /TW Hybrid output style/);
   assert.match(pkg.description, /doctor/);
@@ -325,6 +330,14 @@ test("review-loop skill carries the isolated two-family review, adjudication, ju
   for (const t of ["haiku", "sonnet", "opus", "tier: reviewed", "\| medium \| 51 \| 53%", "\| high \| 54 \| 57%"]) assert.match(body, new RegExp(t), `tier table must mention ${t}`);
   assert.match(body, /`fable` \| retired/, "the tier table must mark fable as retired, not as a tier");
   assert.match(read("hooks/scripts/tier-workflow.js"), /lask:review-loop/, "the workflow deny reason must point here");
+  // Effort by role is explicit: coding high, bulk low-level work medium, research may run xhigh.
+  assert.match(body, /\| implementation, coding[^|]*\| `high` \|/, "effort table must pin coding to high");
+  assert.match(body, /\| bulk low-level work[^|]*\| `medium` \|/, "effort table must put bulk low-level work at medium");
+  assert.match(body, /\| research[^|]*\| `xhigh` is fine/, "effort table must allow research at xhigh");
+  assert.match(body, /\*\*overrides\*\* the pin/, "the skill must say a workflow effort overrides a definition's pin");
+  assert.match(body, /`effort:` \(or a lask `agentType` whose definition pins one\)/, "the workflow rule must require effort or a PINNED lask agentType");
+  assert.match(body, /Only the top-level properties of the call's last argument count/, "the skill must state that only top-level options count");
+  assert.match(body, /\| relays[^|]*\| `low` \|/, "relays run at low effort in workflows");
   assert.match(body, /different model families/i, "reviewers must come from different families");
   assert.match(body, /identical/i, "every reviewer gets the same brief");
   assert.match(body, /mutation/i, "the brief must ask which mutation breaks each cited test");

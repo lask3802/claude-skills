@@ -11,6 +11,15 @@ it write files. Measured on 2026-09-23 (Windows, Git Bash) on a 20-row inventory
 | Meta Muse Code 1.3 | `muse exec --workspace <repo> --approval-mode never --prompt-file <brief>` | ~7 min | Sandbox on by default. An untrusted workspace skips `AGENTS.md` and project skills — good for isolation. Clean stdout. |
 | Xiaomi MiMo via opencode 2 | `opencode2 run --agent plan -m opencode-go/mimo-v2.6-pro "$(cat <brief>)"` | ~36 min | `plan` agent is read-only. Slow; give it >= 45 min. The run lives in opencode's background service: if the client times out, the session still finishes — recover the text with `opencode2 session list` then `opencode2 session export <id>` (last `assistant` message, `text` part). `--session` continuation prompts after a client timeout were not recorded. |
 
+Re-measured 2026-09-26 (DR goal run, same machine):
+
+| Reviewer | Result |
+|---|---|
+| Codex CLI 0.157.0, config `model = "gpt-6-sol"`, `model_reasoning_effort = "high"`, no `-m` | **Works.** One-line smoke test answered correctly; the session log shows `gpt-6-sol`. Read-only review command, prompt on stdin, final message to a file: `codex exec --sandbox read-only --skip-git-repo-check --color never --cd <ws> --json -o <out>/codex.md - < <brief>` (or dispatch `lask:second-opinion`, which adds the quota preflight). |
+| Muse Code 1.3 | Works: `muse.cmd exec --workspace <ws> --approval-mode never --prompt-file <brief>` (positional prompt also works; `--prompt` is not an option). Found 7–9 real findings per spec review in the DR run, 1–2 rejected. |
+| opencode Go (`glm-5.3-flash` etc.) | `Go usage limit exceeded`. |
+| opencode2 `--agent plan` reading outside the workspace | The run **aborts** on the first rejected read (not just the read). Put everything the reviewer needs inside the workspace, or tell it in the brief not to read outside. |
+
 Re-measured 2026-09-23 (lask 2.1 review, same machine):
 
 | Reviewer | Result |
@@ -30,7 +39,7 @@ all models in parallel, one run each.
 | Claude `lask:reviewer` | 8/8 | 8/8 | ~1.5 min | Also caught the append-only trigger turning one change into a crash. |
 | `glm-5.3-flash` | 8/8 | 8/8 | 2 min | **opencode choice**, fastest; a `QUOTA-STOP` fallback. Cheapest in the Go lineup ($0.15/$0.50 per M). |
 | `mimo-v2.6-pro` | 8/8 | 8/8 | 11 min | Backup; slow but complete. |
-| `openrouter/openai/gpt-6-sol#high` (opencode2 + OpenRouter) | — | 8/8 | 3 min | Also caught the append-only trigger, and ran Python in the workspace to check `Jsonb(None)`. `#high` is a real variant: an unknown one fails with `Variant unavailable`. Pay-per-token: about $0.27 for this review (OpenRouter daily total $0.275, incl. a one-line smoke test). The Codex family without the Codex CLI quota; the other `QUOTA-STOP` fallback. |
+| `openrouter/openai/gpt-6-sol#high` (opencode2 + OpenRouter) | — | 8/8 | 3 min | Also caught the append-only trigger, and ran Python in the workspace to check `Jsonb(None)`. `#high` is a real variant: an unknown one fails with `Variant unavailable`. Pay-per-token: about $0.27 for this review (OpenRouter daily total $0.275, incl. a one-line smoke test). **Not used** (owner decision 2026-09-26: gpt-6-sol goes through the Codex CLI only). The OpenRouter credits also ran out mid-review on 2026-09-26 ("would exceed your available credits"). |
 | `openrouter/openai/gpt-6-luna#high` | — | 8/8 | 7 min | Not used (user decision 2026-09-24). Split the review across two sub-agents on its own; also caught the trigger. |
 | `openrouter/openai/gpt-6-luna#max` | — | 7/8 | 5.5 min | Not used. Ruled out the `date` change like glm-5.3; graded everything major/minor. One run each, so high beating max is likely noise. |
 | `glm-5.3` | 8/8 | 7/8 | 9 min | Saw the `date` change but ruled it out ("no date columns"). |
