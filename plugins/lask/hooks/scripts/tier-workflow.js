@@ -283,8 +283,8 @@ function main(raw) {
 
   const reason =
     `lask model-tiering: ${violations.length} agent() call(s) in this workflow script lack an explicit model tier or effort, or use fable. ` +
-    "Rewrite the script so EVERY agent() call sets model: 'opus' (default: implementation, review, research, synthesis) " +
-    "or model: 'sonnet' (mechanical only: extraction, formatting, simple search) — fable is retired for subagents, use opus — " +
+    "Rewrite the script so EVERY agent() call sets model: 'opus' (default: review, research, synthesis, open-scope product work) " +
+    "or model: 'sonnet' (implementation to a spec, symptom-driven debugging, mechanical extraction/formatting/search) — fable is retired for subagents, use opus — " +
     "AND effort by role: research, synthesis, spec/design writing 'xhigh' is fine; implementation, coding, fixes 'high'; " +
     "bulk low-level work (inventories, classification drafts, extraction, sweeps, mechanical edits, format/citation checks) 'medium'; " +
     `review 'high'; recon and verification 'medium'; relays 'low'. A lask agentType whose definition pins effort (${pinnedList}) ` +

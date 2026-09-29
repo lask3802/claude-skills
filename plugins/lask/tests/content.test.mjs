@@ -70,8 +70,12 @@ test("model and effort pins match each role (review-loop tier table)", () => {
   for (const [name, effort] of Object.entries(pins)) {
     assert.equal(fms[name].effort, effort, `${name}: effort pin`);
   }
-  // Only the Codex relay runs below opus; its raw output is what the director adjudicates.
-  for (const name of AGENTS) assert.equal(fms[name].model, name === "second-opinion" ? "haiku" : "opus", `${name}: model`);
+  // Below opus: the Codex relay (haiku; the director adjudicates its raw output) and, from 2.6.0,
+  // the implementer (sonnet 5.5 tied opus on 16 benchmark runs at 66% of the cost; open product scope escalates).
+  const models = { "second-opinion": "haiku", implementer: "sonnet" };
+  for (const name of AGENTS) assert.equal(fms[name].model, models[name] ?? "opus", `${name}: model`);
+  assert.match(read("agents/implementer.md"), /pass model "opus" when the dispatch leaves the product scope open/, "implementer must name its opus escalation");
+  assert.match(read("skills/review-loop/SKILL.md"), /2026-09-29-sonnet-vs-opus-implementer\.md/, "tier table must cite the implementer benchmark");
   assert.match(read("agents/second-opinion.md"), /verbatim/, "second-opinion must pass the brief through verbatim");
   assert.match(read("skills/review-loop/SKILL.md"), /final-message file/, "review-loop must adjudicate Codex from its raw output");
 });
@@ -188,10 +192,10 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop", "voice-input"]);
 });
 
-test("plugin.json is 2.5.1 and describes the roster, the review loop, the output style and the playbook layer", () => {
+test("plugin.json is 2.6.0 and describes the roster, the review loop, the output style and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.5.1");
+  assert.equal(pkg.version, "2.6.0");
   assert.match(pkg.description, /review-loop/);
   assert.match(pkg.description, /TW Hybrid output style/);
   assert.match(pkg.description, /doctor/);

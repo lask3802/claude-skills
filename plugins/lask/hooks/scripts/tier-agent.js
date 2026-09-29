@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // PreToolUse hook for the Agent/Task tool (subagents and agent-team teammates).
-// Policy: spawned agents run on opus; sonnet only for mechanical work; no fable.
+// Policy: unnamed spawns run on opus; sonnet when the caller says so (spec'd implementation,
+// symptom-driven debugging, mechanical work — lask:implementer pins it); no fable.
 //   - explicit fable -> opus (fable subagents are retired: Opus 5.5 is the better buy)
 //   - any other explicit `model` -> untouched (explicit choice is the gate)
 //   - model "inherit" counts as unset (it would hand down the main-loop model)
@@ -36,7 +37,7 @@ function main(raw) {
   } else {
     const model = type === 'Explore' ? 'sonnet' : 'opus';
     updatedInput = { ...rest, model };
-    why = `spawned agent defaulted to ${model}. Pass \`model: "sonnet"\` only for mechanical work.`;
+    why = `spawned agent defaulted to ${model}. Pass \`model: "sonnet"\` for spec'd implementation, debugging or mechanical work (lask:implementer already runs on sonnet).`;
   }
   process.stdout.write(
     JSON.stringify({

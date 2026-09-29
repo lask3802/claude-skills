@@ -1,7 +1,7 @@
 ---
 name: implementer
-description: Use to build to a spec — features, edits, refactors, test-writing. Full toolset; implements exactly the dispatched scope, self-tests, and reports evidence plus a precise change list.
-model: opus
+description: Use to build to a spec — features, edits, refactors, test-writing, and symptom-driven bug fixing. Full toolset; implements exactly the dispatched scope, self-tests, and reports evidence plus a precise change list. Runs on sonnet; pass model "opus" when the dispatch leaves the product scope open (the agent must define the problem and its acceptance itself).
+model: sonnet
 effort: high
 ---
 

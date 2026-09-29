@@ -48,6 +48,18 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.6.0：`lask:implementer` 改跑 Sonnet 5.5
+
+2.5 以前 Sonnet 只做機械性工作，依據是 Terminal-Bench 4.0 上 Sonnet 5 只有 5%。Sonnet 5.5 推出後在 catgame 實測（2026-09-29）：Opus 5.5 當 director，把工單原文派給 Sonnet 5.5 或 Opus 5.5 的 implementer（effort 都是 high），各跑 16 輪，兩位評審盲評（Codex gpt-6-astra high、Opus xhigh）。題目分兩輪：第一輪是規格明確的 .NET 工單；第二輪只給玩家症狀，其中三題植入 2–3 個互相遮掩的根因，另一題是要自己定義範圍的照片系統產品工單。
+
+- **一樣好的部分**：隱藏測試兩邊都是 16/16；Astra 評分平均兩邊都是 91.9，Opus 評審是 98.0 對 97.2。植入的根因兩邊都全部找到。
+- **比較便宜的部分**：含 director 每題 $2.26 對 $3.44（66%），每題 9.6 對 11.2 分鐘。
+- **輸的部分**：只有要自己定義問題的產品工單，兩位評審都給 Opus 97–99、Sonnet 92–95。
+
+所以 `lask:implementer` 的 frontmatter 改成 `model: sonnet`，effort 維持 high；工單的產品範圍開放、要 agent 自己決定做什麼和怎樣算完成時，director 在 Agent 呼叫帶 `model: "opus"`。reviewer、researcher、scout、verifier 這次沒測，維持原樣。完整數據與限制（每格只有 2 次、只測 .NET domain、題目兩個模型都解得掉）見 [docs/benchmarks/2026-09-29-sonnet-vs-opus-implementer.md](docs/benchmarks/2026-09-29-sonnet-vs-opus-implementer.md)。
+
+實測時踩到的一件事：`tier-agent.js` 會把沒有命名空間的 subagent（例如自己放在 `~/.claude/agents` 的定義）在沒明確帶 `model` 時改成 opus，所以那類定義的 frontmatter `model:` 看起來像被忽略。`lask:*` 不受影響，frontmatter 照常生效。
+
 ## 2.5.1：`/lask:clip` 繞過逐字貼上
 
 herdr 在 Windows 上把貼上的內容經 ConPTY 拆成一個一個按鍵送進 pane，沒有 bracketed paste 標記（上游 #4263、#4422、#4427、#4528 都以 duplicate 關閉，0.9.1 仍在）。Claude Code 因此把每個換行當成 Enter 送出，長文也不會縮成 `[Pasted text +N lines]`，而是逐字打進來。把 Enter 改成換行只擋得住送出，擋不住逐字輸入，所以改走另一條路：`/lask:clip [指示]` 在指令展開時直接讀剪貼簿（`pwsh`／`powershell.exe` 的 `Get-Clipboard`，其他平台用 `pbpaste`／`wl-paste`／`xclip`），整段一次送進訊息，完全不經過終端的貼上流程。
@@ -131,7 +143,7 @@ style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin
 |---|---|---|
 | `lask:scout` | opus（effort medium） | 內部偵察：讀碼、盤結構與現況，回報精煉簡報（唯讀） |
 | `lask:researcher` | opus | 外部研究：官方文件、API、生態系（唯讀＋web） |
-| `lask:implementer` | opus（effort high） | 依規格實作＋自測義務（附指令與結果證據）；也擔任 review loop 的 fixer |
+| `lask:implementer` | sonnet（effort high；產品範圍開放時 director 傳 `model: "opus"`） | 依規格實作＋自測義務（附指令與結果證據）；也擔任 review loop 的 fixer |
 | `lask:reviewer` | opus（effort high） | 對抗式審查：假設變更是錯的，以規格行號為準，severity 分級、每條附失敗情境 |
 | `lask:second-opinion` | haiku | 跨模型審查：開跑前先檢查 Codex 額度（不足就回報 `QUOTA-STOP`），唯讀沙箱跑 Codex CLI，brief 原文照抄給 Codex，以 event＋telemetry JSONL 顯示過程並忠實轉述；主 session 以 Codex 的原始 final-message 檔逐條裁決（haiku 只做轉述，判斷在 Codex 與主 session） |
 | `lask:verifier` | opus（effort medium） | 驗收官／judge：逐條執行驗收，只回報事實、絕不動手修；擔任 judge 時也檢查 judge 本身是否驗證過 |

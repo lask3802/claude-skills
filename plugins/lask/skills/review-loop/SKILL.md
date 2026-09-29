@@ -83,10 +83,26 @@ never by an agent inside the loop.
 
 | Tier | For |
 |---|---|
-| `opus` — default | implementation, review, research, synthesis |
-| `sonnet` / built-in Explore | mechanical only, checkable by inspection: inventories, extraction, sweeps. Not multi-step tool work: Terminal-Bench 4.0 has Sonnet 5 at 5% (high) / 14% (max) vs Opus 5.5 at 31% (low) |
+| `opus` — default | review, research, synthesis, and implementation whose product scope is open (the agent must define the problem and its acceptance itself) |
+| `sonnet` (5.5) | implementation to a spec and symptom-driven debugging (`lask:implementer`); mechanical work: inventories, extraction, sweeps. Built-in Explore |
 | `haiku` | pure relays whose raw output the director reads anyway (`lask:second-opinion`) |
 | `fable` | retired for subagents: Opus 5.5 is the better buy, and the hooks move fable spawns to opus |
+
+Sonnet 5.5 as the implementer, measured 2026-09-29 (catgame, 8 tasks × 2 runs per model,
+Opus 5.5 director, both at high; blind scores from Codex gpt-6-astra and an Opus xhigh
+judge; full data in `docs/benchmarks/2026-09-29-sonnet-vs-opus-implementer.md`):
+
+| | Opus 5.5 | Sonnet 5.5 |
+|---|---|---|
+| hidden tests (spec'd tasks, then vague symptom reports with 2–3 injected root causes) | 16/16 | 16/16 |
+| judge score, Astra / Opus | 91.9 / 98.0 | 91.9 / 97.2 |
+| cost per task incl. director | $3.44 | $2.26 (66%) |
+| minutes per task | 11.2 | 9.6 |
+| open product ticket (define the slice yourself), both judges | 97–99 | 92–95 |
+
+The only consistent gap is the open product ticket, so that one escalates to opus. The
+older reason for keeping sonnet mechanical (Terminal-Bench 4.0: Sonnet 5 at 5% high) was
+measured on Sonnet 5, not 5.5.
 
 Opus 5.5 on Artificial Analysis, 2026-09-23:
 
@@ -104,7 +120,7 @@ work. So effort is set **by role, explicitly** — never left to whatever the se
 | Work | effort | How it is set |
 |---|---|---|
 | research, synthesis, spec and design writing, hard root-cause debugging | `xhigh` is fine (the session's) | `lask:researcher` is unpinned; in a workflow write `effort: 'xhigh'` |
-| implementation, coding, test writing, the fixer | `high` | `lask:implementer` pins high; in a workflow `effort: 'high'` (`'xhigh'` only for a named hard case, e.g. a concurrency or determinism bug) |
+| implementation, coding, test writing, the fixer | `high` | `lask:implementer` pins sonnet at high (pass `model: 'opus'` when the product scope is open); in a workflow `model: 'sonnet', effort: 'high'` (`'xhigh'` only for a named hard case, e.g. a concurrency or determinism bug) |
 | bulk low-level work: inventories, classification drafts, extraction, sweeps, mechanical edits, format and citation checks | `medium` | in a workflow `effort: 'medium'` on opus; when it is purely mechanical `model: 'sonnet'` — still with an explicit effort |
 | review | `high` | `lask:reviewer` pins high |
 | recon, verification | `medium` | `lask:scout`, `lask:verifier` pin medium |
