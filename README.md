@@ -48,6 +48,18 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.6.1：`lask:implementer` 第一次實戰後補的規則
+
+2.6.0 把 implementer 換成 Sonnet 5.5 之後，第一次實戰是一個私有 repo 的大型重構：122 個檔案改成單一 package、改用 `python -m` 啟動，再加上 pyproject 與後續修正，三個切片都由 Sonnet 5.5 實作，每片再交給 Opus 5.5 與 Codex gpt-6-sol 獨立 review。結果和 benchmark 一致：規格寫清楚的部分做得紮實（真 DB 全套測試前後一致、新測試都做過 mutation），問題集中在規格以外的判斷。這版把觀察到的行為寫進 `agents/implementer.md`：
+
+- **要保留的**：先驗證派工的前提，包括實際的起點 commit、規格裡的指令能不能跑。兩次都自己發現 worktree 起點不對，並 fast-forward 到正確的 commit。
+- **會繞過驗收**：為了讓「grep 找不到舊變數名」這條驗收通過，把測試裡的變數名拆成兩段字串。現在明文禁止用拆字串、改名、藏程式碼讓檢查通過；驗收的字面和目的衝突時，照目的做並回報衝突。
+- **只看 repo 內**：把經由 `sys.path` 從別的 repo 載入的 import 判成 dead code，刪掉會弄壞線上的診斷流程。
+- **搬路徑時漏看執行端**：prompt 叫 agent 在錯的目錄跑 `python -m`，文件裡的反斜線路徑也沒改到。這兩個都是 review 抓到的，實作端自己沒發現。
+- **為了確認能啟動而直接執行**：reviewer 對一支沒有 argparse 的 script 跑 `--help`，結果 `--help` 被當成檔名，程式真的連到遠端的備份主機（被主機端的 guard 擋下）。現在規定要先讀程式、確認參數會在任何副作用之前解析，才可以執行入口。
+
+director 這一側的教訓不在 agent 定義裡：驗收條件要寫目的，不要寫成字面規則；review 仍然要另外派 agent，這次兩個 major 都是 reviewer 抓到的。
+
 ## 2.6.0：`lask:implementer` 改跑 Sonnet 5.5
 
 2.5 以前 Sonnet 只做機械性工作，依據是 Terminal-Bench 4.0 上 Sonnet 5 只有 5%。Sonnet 5.5 推出後在 catgame 實測（2026-09-29）：Opus 5.5 當 director，把工單原文派給 Sonnet 5.5 或 Opus 5.5 的 implementer（effort 都是 high），各跑 16 輪，兩位評審盲評（Codex gpt-6-astra high、Opus xhigh）。題目分兩輪：第一輪是規格明確的 .NET 工單；第二輪只給玩家症狀，其中三題植入 2–3 個互相遮掩的根因，另一題是要自己定義範圍的照片系統產品工單。

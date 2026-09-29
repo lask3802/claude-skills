@@ -192,10 +192,10 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop", "voice-input"]);
 });
 
-test("plugin.json is 2.6.0 and describes the roster, the review loop, the output style and the playbook layer", () => {
+test("plugin.json is 2.6.1 and describes the roster, the review loop, the output style and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.6.0");
+  assert.equal(pkg.version, "2.6.1");
   assert.match(pkg.description, /review-loop/);
   assert.match(pkg.description, /TW Hybrid output style/);
   assert.match(pkg.description, /doctor/);
