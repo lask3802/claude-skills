@@ -48,6 +48,10 @@ lask 的個人 Claude Code skill 集合，以 **Claude Code plugin marketplace**
 | 設計需求列出「不要的」風格 | `lask:design-brief`：累積式禁用清單 `~/.claude/lask/design-avoid.md`（專案可另設 `.claude/design-avoid.md`），交付後列出替代選擇，被否決就加進清單 |
 | 刪掉「think hard」、不要求展示推理 | `/lask:doctor` 掃描 CLAUDE.md／AGENTS.md／rules／agents／skills 找這類句子；plugin 自身由 content test 守住 |
 
+## 2.5.1：`/lask:clip` 繞過逐字貼上
+
+herdr 在 Windows 上把貼上的內容經 ConPTY 拆成一個一個按鍵送進 pane，沒有 bracketed paste 標記（上游 #4263、#4422、#4427、#4528 都以 duplicate 關閉，0.9.1 仍在）。Claude Code 因此把每個換行當成 Enter 送出，長文也不會縮成 `[Pasted text +N lines]`，而是逐字打進來。把 Enter 改成換行只擋得住送出，擋不住逐字輸入，所以改走另一條路：`/lask:clip [指示]` 在指令展開時直接讀剪貼簿（`pwsh`／`powershell.exe` 的 `Get-Clipboard`，其他平台用 `pbpaste`／`wl-paste`／`xclip`），整段一次送進訊息，完全不經過終端的貼上流程。
+
 ## 2.5.0：coding 與大量工作明確指定 effort
 
 2.3 只替角色性質明確的 agent 固定 effort，`implementer`、`researcher` 跟著 session 走。實際跑下來的問題是：session 開 `/effort xhigh` 或 ultracode 時，所有沒固定的 agent 都跟著跑 xhigh。dragonraja-rebon 2026-09-26 的一個 workflow 只寫了 `model: 'opus'`，結果 29 個 inventory 起草與裁決 agent 全跑在 xhigh，只有固定 high 的 `lask:reviewer` 那一段是 high。依 2.3 的量測，high 以上每升一級約翻倍成本、只多 0–3 分，coding 和大量低階工作不該吃到 xhigh。
@@ -116,6 +120,7 @@ style 放在 plugin 裡，是為了跟著 plugin 走到每台機器。但 plugin
 | `/lask:doctor` | 對照 Opus 5.5 playbook 檢查環境：stop rule、think-hard 句、要求展示推理的句子、destructive guard、design 清單、`TASKS.md` 進度、model／effort、過期的 `FABLE-SENSE` 區塊。`--install` 把 autonomy 區塊（stop rule、長任務 `TASKS.md`、每單位一個 subagent、design 禁用清單、回報格式）裝進 `~/.claude/CLAUDE.md`（先備份；本地改過的不覆蓋，除非 `--force`），移除 `FABLE-SENSE` 區塊，並建立 design 清單。 |
 | `/lask:codex-run` | 手動派發單一任務給 Codex CLI，用法 `/lask:codex-run [--model sol\|astra\|luna] [--effort low\|medium\|high\|xhigh\|max\|ultra] [--sandbox write\|read] <任務>`（預設 gpt-6-sol；gpt-5.6 仍可用完整名指定）。啟動後立即回傳 workspace-scoped job ID；底層保存純 event JSONL、authenticated owner＋PID、quiet-heartbeat telemetry、獨立 stderr／final-message 與真實 exit code，terminal commit 會綁定 final 的 size＋SHA-256。 |
 | `/lask:voice-input` | Windows 語音輸入 Claude：安裝 CapsWriter-Offline＋Qwen3-ASR（CPU、台灣繁體），種熱詞，從 client log 驗證；`tune` 依 log 的原始辨識結果加熱詞修錯字。附多連線下載器 `pdl.py`。 |
+| `/lask:clip` | 用法 `/lask:clip [指示]`：讀取剪貼簿，整段附進這則訊息送出。給 herdr 這類在 Windows 上把貼上拆成逐字按鍵的終端用（換行會變成送出、長文不會縮成 `[Pasted text]`）。 |
 | `/lask:codex-status` | 查目前 workspace 最新或指定 Codex job；顯示 queued/running/completed 等狀態、reasoning/investigating/editing/verifying 等 phase、最後活動與 artifact 路徑。`--all` 可列出所有 jobs。 |
 | `/lask:codex-result` | 讀取最新或指定已結束 job 的 Codex final response；失敗／取消時不會假裝成功。 |
 | `/lask:codex-cancel` | 安全取消最新或指定 job。controller 不依 manifest PID 直接殺程序，而由 owning runner 收到 job-specific request 後終止自己的 child tree。 |
@@ -212,7 +217,7 @@ plugins/
     output-styles/
       tw-hybrid.md          # lask:TW Hybrid：說話的口吻講因果，並列事實用對稱結構
     agents/                 # 六人編制（scout/researcher/implementer/reviewer/second-opinion/verifier）
-    commands/               # doctor / codex-status / codex-result / codex-cancel
+    commands/               # doctor / clip / codex-status / codex-result / codex-cancel
     templates/
       claude-md-autonomy.md # doctor --install 裝進 ~/.claude/CLAUDE.md：stop rule、長任務、fan-out、design 清單、回報格式
       design-avoid.md       # design 禁用清單種子

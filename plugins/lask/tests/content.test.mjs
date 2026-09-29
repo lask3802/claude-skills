@@ -188,10 +188,10 @@ test("2.2 retirements live in archive/lask-2.1, not in the plugin", () => {
   assert.deepEqual(fs.readdirSync(path.join(PLUGIN_ROOT, "skills")).sort(), ["codex-run", "review-loop", "voice-input"]);
 });
 
-test("plugin.json is 2.5.0 and describes the roster, the review loop, the output style and the playbook layer", () => {
+test("plugin.json is 2.5.1 and describes the roster, the review loop, the output style and the playbook layer", () => {
   const pkg = JSON.parse(read(".claude-plugin/plugin.json"));
   assert.equal(pkg.name, "lask");
-  assert.equal(pkg.version, "2.5.0");
+  assert.equal(pkg.version, "2.5.1");
   assert.match(pkg.description, /review-loop/);
   assert.match(pkg.description, /TW Hybrid output style/);
   assert.match(pkg.description, /doctor/);
@@ -358,7 +358,7 @@ test("reviewer is adversarial and spec-anchored; verifier checks its own judge",
 test("README documents the roster, the skills, and the test commands", () => {
   const readme = fs.readFileSync(path.join(PLUGIN_ROOT, "..", "..", "README.md"), "utf8");
   for (const a of AGENTS) assert.match(readme, new RegExp(`lask:${a}`), `README must document lask:${a}`);
-  for (const s of ["review-loop", "doctor", "codex-run", "codex-status", "codex-result", "codex-cancel", "voice-input"])
+  for (const s of ["review-loop", "doctor", "codex-run", "codex-status", "codex-result", "codex-cancel", "voice-input", "clip"])
     assert.match(readme, new RegExp(`lask:${s}`), `README must document lask:${s}`);
   assert.match(readme, /node plugins\/lask\/hooks\/scripts\/tier\.test\.js/);
   assert.match(readme, /node --test plugins\/lask\/tests\//);
@@ -398,4 +398,14 @@ test("voice-input skill ships the measured CPU setup, the downloader and the ver
   assert.match(body, /newline=''/, "config edits must preserve line endings");
   assert.ok(fs.existsSync(path.join(PLUGIN_ROOT, "skills", "voice-input", "pdl.py")), "parallel downloader ships with the skill");
   assert.match(read("skills/voice-input/pdl.py"), /size mismatch/, "downloader must verify part sizes");
+});
+
+test("clip command reads the clipboard at expansion time, UTF-8 on Windows, with a non-Windows fallback", () => {
+  const { fm, body } = parseFrontmatter(read("commands/clip.md"));
+  assert.equal(fm["disable-model-invocation"], "true", "only the user sends the clipboard");
+  assert.match(body, /!`pwsh [^`]*Get-Clipboard -Raw/, "must read the clipboard in the ! expansion, not via the model");
+  assert.match(body, /OutputEncoding=\[Text\.Encoding\]::UTF8/, "Windows console output must be UTF-8 or CJK text garbles");
+  assert.match(body, /powershell\.exe/, "Windows PowerShell fallback when pwsh is missing");
+  for (const t of ["pbpaste", "wl-paste", "xclip"]) assert.match(body, new RegExp(t), `non-Windows fallback ${t}`);
+  assert.match(body, /\$ARGUMENTS/);
 });
